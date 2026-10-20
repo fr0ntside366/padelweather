@@ -212,15 +212,15 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-chart-line text-blue-400"></i> Uurlijkse / 15-Min Verwachting Per Model
+                        <i class="fa-solid fa-chart-line text-blue-400"></i> Weersverwachting per Model / Consensus
                     </h3>
-                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (15-minuten neerslagresolutie)</p>
+                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (Neerslag = consensus op basis van modelovereenkomst)</p>
                 </div>
 
                 <!-- Chart Parameter Selector -->
                 <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 self-stretch sm:self-auto">
                     <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
-                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (15m/mm)</button>
+                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (Overeenkomst %)</button>
                     <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
                 </div>
             </div>
@@ -286,7 +286,6 @@
         let kmiObservedData = null;
         let chartInstance = null;
         let timeLabels = [];
-        let min15Labels = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             renderModelToggles();
@@ -338,32 +337,22 @@
             if(icon) icon.classList.add('fa-spin');
 
             try {
-                // 1. Fetch Live KMI Deurne Station Data
                 const kmiApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${KMI_DEURNE_LAT}&longitude=${KMI_DEURNE_LON}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FBrussels`;
                 const kmiRes = await fetch(kmiApiUrl);
                 kmiObservedData = await kmiRes.json();
                 processKMIStationData();
 
-                // 2. Fetch Multi-Model Data per model (met hourly én minutely_15 per model om unieke modelcurves te behouden)
                 const fetchPromises = Object.keys(MODELS).map(async (key) => {
                     const m = MODELS[key];
-                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&minutely_15=precipitation&models=${m.apiModel}&forecast_days=3&timezone=Europe%2FBrussels`;
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${m.apiModel}&forecast_days=3&timezone=Europe%2FBrussels`;
                     
                     try {
                         const res = await fetch(url);
                         const data = await res.json();
-                        if (data) {
-                            if (data.hourly) {
-                                MODELS[key].data = data.hourly;
-                                if (timeLabels.length === 0 && data.hourly.time) {
-                                    timeLabels = data.hourly.time.slice(0, 72);
-                                }
-                            }
-                            if (data.minutely_15) {
-                                MODELS[key].min15Data = data.minutely_15.precipitation.slice(0, 192); // 48 uur * 4
-                                if (min15Labels.length === 0 && data.minutely_15.time) {
-                                    min15Labels = data.minutely_15.time.slice(0, 192);
-                                }
+                        if (data && data.hourly) {
+                            MODELS[key].data = data.hourly;
+                            if (timeLabels.length === 0 && data.hourly.time) {
+                                timeLabels = data.hourly.time.slice(0, 72);
                             }
                         }
                     } catch(e) {
@@ -446,63 +435,122 @@
 
         function renderChart() {
             const ctx = document.getElementById('weatherChart').getContext('2d');
-            
-            const is15Min = (currentMetric === 'rain' && min15Labels.length > 0);
-            const labelsSource = is15Min ? min15Labels : timeLabels;
+            if (timeLabels.length === 0) return;
 
-            if (labelsSource.length === 0) return;
-
-            const formattedTimes = labelsSource.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
-
-            const metricMap = {
-                temperature: 'temperature_2m',
-                rain: 'precipitation',
-                wind: 'wind_speed_10m'
-            };
-
-            const datasets = [];
-
-            Object.keys(MODELS).forEach(key => {
-                const m = MODELS[key];
-                if (m.active) {
-                    let dataVals = [];
-                    if (is15Min && m.min15Data) {
-                        dataVals = m.min15Data;
-                    } else if (m.data) {
-                        const field = metricMap[currentMetric];
-                        dataVals = (m.data[field] || []).slice(0, labelsSource.length);
-                    }
-
-                    datasets.push({
-                        label: m.name,
-                        data: dataVals,
-                        borderColor: m.color,
-                        backgroundColor: m.color + '20',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 0
-                    });
-                }
-            });
+            const formattedTimes = timeLabels.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
 
             if (chartInstance) chartInstance.destroy();
 
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: { labels: formattedTimes, datasets: datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-                        tooltip: { mode: 'index', intersect: false }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
-                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+            if (currentMetric === 'rain') {
+                // Consensus Bar Chart colored by model agreement percentage
+                const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
+                const rainData = [];
+                const backgroundColors = [];
+
+                for (let i = 0; i < timeLabels.length; i++) {
+                    let totalRain = 0;
+                    let modelsRainCount = 0;
+
+                    activeKeys.forEach(k => {
+                        const p = MODELS[k].data.precipitation ? MODELS[k].data.precipitation[i] : 0;
+                        totalRain += p;
+                        if (p > 0.05) modelsRainCount++;
+                    });
+
+                    const avgRain = activeKeys.length > 0 ? totalRain / activeKeys.length : 0;
+                    const agreementPct = activeKeys.length > 0 ? (modelsRainCount / activeKeys.length) * 100 : 0;
+
+                    rainData.push(avgRain.toFixed(2));
+
+                    // Color mapping based on agreement percentage (cyan -> blue -> deep indigo/purple)
+                    if (agreementPct >= 80) {
+                        backgroundColors.push('#312e81'); // Deep navy/purple (high agreement)
+                    } else if (agreementPct >= 50) {
+                        backgroundColors.push('#4f46e5'); // Indigo
+                    } else if (agreementPct >= 25) {
+                        backgroundColors.push('#3b82f6'); // Blue
+                    } else if (agreementPct > 0) {
+                        backgroundColors.push('#22d3ee'); // Cyan / Light blue
+                    } else {
+                        backgroundColors.push('transparent');
                     }
                 }
-            });
+
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: formattedTimes,
+                        datasets: [{
+                            label: 'Neerslag Consensus (mm/u - donkerder = meer modelovereenkomst)',
+                            data: rainData,
+                            backgroundColor: backgroundColors,
+                            borderWidth: 0,
+                            borderRadius: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` Gemiddeld: ${context.raw} mm/u`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' }, title: { display: true, text: 'Neerslag (mm/h)', color: '#94a3b8' } }
+                        }
+                    }
+                });
+
+            } else {
+                // Line chart for Temperature and Wind
+                const metricMap = {
+                    temperature: 'temperature_2m',
+                    wind: 'wind_speed_10m'
+                };
+
+                const datasets = [];
+                Object.keys(MODELS).forEach(key => {
+                    const m = MODELS[key];
+                    if (m.active && m.data) {
+                        const field = metricMap[currentMetric];
+                        const dataVals = (m.data[field] || []).slice(0, 72);
+
+                        datasets.push({
+                            label: m.name,
+                            data: dataVals,
+                            borderColor: m.color,
+                            backgroundColor: m.color + '20',
+                            borderWidth: 2,
+                            tension: 0.3,
+                            pointRadius: 0
+                        });
+                    }
+                });
+
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: formattedTimes, datasets: datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                            tooltip: { mode: 'index', intersect: false }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
+                            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                        }
+                    }
+                });
+            }
         }
 
         function renderHourlyTable() {
