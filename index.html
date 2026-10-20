@@ -214,7 +214,7 @@
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-chart-line text-blue-400"></i> Weersverwachting per Model / Consensus
                     </h3>
-                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (Neerslag = consensus op basis van modelovereenkomst)</p>
+                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (Witte stippellijnen = start nieuwe dag)</p>
                 </div>
 
                 <!-- Chart Parameter Selector -->
@@ -286,6 +286,34 @@
         let kmiObservedData = null;
         let chartInstance = null;
         let timeLabels = [];
+
+        // Chart.js Plugin for vertical day-transition lines (Midnight lines)
+        const midnightLinesPlugin = {
+            id: 'midnightLines',
+            beforeDraw: (chart) => {
+                const ctx = chart.ctx;
+                const xAxis = chart.scales.x;
+                const yAxis = chart.scales.y;
+                if (!xAxis || !yAxis) return;
+
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+
+                chart.data.labels.forEach((label, index) => {
+                    // Check if this label indicates midnight (e.g. contains '00:00')
+                    if (typeof label === 'string' && label.includes('00:00') && index > 0) {
+                        const x = xAxis.getPixelForTick(index);
+                        ctx.beginPath();
+                        ctx.moveTo(x, yAxis.top);
+                        ctx.lineTo(x, yAxis.bottom);
+                        ctx.stroke();
+                    }
+                });
+                ctx.restore();
+            }
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             renderModelToggles();
@@ -442,7 +470,6 @@
             if (chartInstance) chartInstance.destroy();
 
             if (currentMetric === 'rain') {
-                // Consensus Bar Chart colored by model agreement percentage
                 const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
                 const rainData = [];
                 const backgroundColors = [];
@@ -462,15 +489,14 @@
 
                     rainData.push(avgRain.toFixed(2));
 
-                    // Color mapping based on agreement percentage (cyan -> blue -> deep indigo/purple)
                     if (agreementPct >= 80) {
-                        backgroundColors.push('#312e81'); // Deep navy/purple (high agreement)
+                        backgroundColors.push('#312e81');
                     } else if (agreementPct >= 50) {
-                        backgroundColors.push('#4f46e5'); // Indigo
+                        backgroundColors.push('#4f46e5');
                     } else if (agreementPct >= 25) {
-                        backgroundColors.push('#3b82f6'); // Blue
+                        backgroundColors.push('#3b82f6');
                     } else if (agreementPct > 0) {
-                        backgroundColors.push('#22d3ee'); // Cyan / Light blue
+                        backgroundColors.push('#22d3ee');
                     } else {
                         backgroundColors.push('transparent');
                     }
@@ -505,11 +531,11 @@
                             x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
                             y: { ticks: { color: '#64748b' }, grid: { color: '#334155' }, title: { display: true, text: 'Neerslag (mm/h)', color: '#94a3b8' } }
                         }
-                    }
+                    },
+                    plugins: [midnightLinesPlugin]
                 });
 
             } else {
-                // Line chart for Temperature and Wind
                 const metricMap = {
                     temperature: 'temperature_2m',
                     wind: 'wind_speed_10m'
@@ -548,7 +574,8 @@
                             x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
                             y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
                         }
-                    }
+                    },
+                    plugins: [midnightLinesPlugin]
                 });
             }
         }
