@@ -152,13 +152,13 @@
                 <div>
                     <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
                         <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-tower-broadcast text-rose-500 animate-pulse"></i>
+                            <i class="fa-solid fa-tower-broadcast text-black bg-white rounded-full p-1 animate-pulse"></i>
                             <div>
                                 <h3 class="text-sm font-bold text-white">Live KMI Station Deurne</h3>
                                 <p class="text-[10px] text-slate-400">WMO 06450 • ~7 km van Ranst</p>
                             </div>
                         </div>
-                        <span class="text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded">Reële Meting</span>
+                        <span class="text-[10px] font-semibold bg-black text-white border border-white/30 px-2 py-0.5 rounded">Reële Meting</span>
                     </div>
 
                     <div class="mt-4 space-y-3">
@@ -214,14 +214,24 @@
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-chart-line text-blue-400"></i> Weersverwachting per Model / Consensus
                     </h3>
-                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (Witte stippellijnen = start nieuwe dag)</p>
+                    <p id="forecastPeriodDescription" class="text-xs text-slate-400">Verwachting voor vandaag in Ranst (Witte stippellijnen = start nieuwe dag)</p>
                 </div>
 
-                <!-- Chart Parameter Selector -->
-                <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 self-stretch sm:self-auto">
-                    <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
-                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (Overeenkomst %)</button>
-                    <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
+                <div class="flex flex-col gap-2 self-stretch sm:items-end">
+                    <label for="forecastPeriod" class="sr-only">Periode van de weersverwachting</label>
+                    <select id="forecastPeriod" onchange="switchForecastPeriod(this.value)" class="bg-slate-900/80 border border-slate-700/80 text-slate-200 text-xs rounded-lg px-3 py-2">
+                        <option value="today">Vandaag</option>
+                        <option value="tomorrow">Morgen</option>
+                        <option value="dayAfterTomorrow">Overmorgen</option>
+                        <option value="next7Days">Komende 7 dagen</option>
+                    </select>
+
+                    <!-- Chart Parameter Selector -->
+                    <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80">
+                        <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
+                        <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (Overeenkomst %)</button>
+                        <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
+                    </div>
                 </div>
             </div>
 
@@ -250,7 +260,7 @@
                             <th class="p-3 text-emerald-400">ICON (DE)</th>
                             <th class="p-3 text-amber-400">AROME (FR)</th>
                             <th class="p-3 text-purple-400">GEM (CA)</th>
-                            <th class="p-3 text-rose-400">KMI / ALARO (BE)</th>
+                            <th class="p-3 bg-white text-black">KMI / ALARO (BE)</th>
                         </tr>
                     </thead>
                     <tbody id="hourlyTableBody" class="divide-y divide-slate-700/50 text-slate-300"></tbody>
@@ -279,13 +289,20 @@
             icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
             arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
             gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
-            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null }
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#000000', active: true, data: null }
         };
 
         let currentMetric = 'temperature';
+        let currentForecastPeriod = 'today';
         let kmiObservedData = null;
         let chartInstance = null;
         let timeLabels = [];
+        const FORECAST_PERIODS = {
+            today: { offset: 0, days: 1, description: 'vandaag' },
+            tomorrow: { offset: 1, days: 1, description: 'morgen' },
+            dayAfterTomorrow: { offset: 2, days: 1, description: 'overmorgen' },
+            next7Days: { offset: 0, days: 7, description: 'de komende 7 dagen' }
+        };
 
         // Chart.js Plugin for vertical day-transition lines (Midnight lines)
         const midnightLinesPlugin = {
@@ -337,7 +354,7 @@
                 btn.innerHTML = `
                     <div class="overflow-hidden">
                         <div class="text-xs font-bold flex items-center gap-1.5">
-                            <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${model.color}"></span>
+                            <span class="w-2.5 h-2.5 rounded-full inline-block border border-white/70" style="background-color: ${model.color}"></span>
                             <span class="truncate">${model.name}</span>
                         </div>
                         <div class="text-[10px] text-slate-400 truncate">${model.origin}</div>
@@ -372,15 +389,15 @@
 
                 const fetchPromises = Object.keys(MODELS).map(async (key) => {
                     const m = MODELS[key];
-                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${m.apiModel}&forecast_days=3&timezone=Europe%2FBrussels`;
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${m.apiModel}&forecast_days=7&timezone=Europe%2FBrussels`;
                     
                     try {
                         const res = await fetch(url);
                         const data = await res.json();
                         if (data && data.hourly) {
                             MODELS[key].data = data.hourly;
-                            if (timeLabels.length === 0 && data.hourly.time) {
-                                timeLabels = data.hourly.time.slice(0, 72);
+                            if (data.hourly.time && data.hourly.time.length > timeLabels.length) {
+                                timeLabels = data.hourly.time;
                             }
                         }
                     } catch(e) {
@@ -461,11 +478,47 @@
             renderChart();
         }
 
+        function switchForecastPeriod(period) {
+            if (!FORECAST_PERIODS[period]) return;
+
+            currentForecastPeriod = period;
+            document.getElementById('forecastPeriodDescription').innerText =
+                `Verwachting voor ${FORECAST_PERIODS[period].description} in Ranst (Witte stippellijnen = start nieuwe dag)`;
+            renderChart();
+            renderHourlyTable();
+        }
+
+        function getVisibleTimeIndexes() {
+            if (timeLabels.length === 0) return [];
+
+            const period = FORECAST_PERIODS[currentForecastPeriod];
+            const dateParts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Europe/Brussels',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(new Date());
+            const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+            const [year, month, day] = [dateValues.year, dateValues.month, dateValues.day].map(Number);
+            const startDate = new Date(Date.UTC(year, month - 1, day + period.offset));
+            const endDate = new Date(Date.UTC(year, month - 1, day + period.offset + period.days));
+            const startDateString = startDate.toISOString().slice(0, 10);
+            const endDateString = endDate.toISOString().slice(0, 10);
+
+            return timeLabels.reduce((indexes, time, index) => {
+                const date = time.slice(0, 10);
+                if (date >= startDateString && date < endDateString) indexes.push(index);
+                return indexes;
+            }, []);
+        }
+
         function renderChart() {
             const ctx = document.getElementById('weatherChart').getContext('2d');
             if (timeLabels.length === 0) return;
 
-            const formattedTimes = timeLabels.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+            const visibleIndexes = getVisibleTimeIndexes();
+            const visibleTimes = visibleIndexes.map(index => timeLabels[index]);
+            const formattedTimes = visibleTimes.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
 
             if (chartInstance) chartInstance.destroy();
 
@@ -474,7 +527,7 @@
                 const rainData = [];
                 const backgroundColors = [];
 
-                for (let i = 0; i < timeLabels.length; i++) {
+                visibleIndexes.forEach(i => {
                     let totalRain = 0;
                     let modelsRainCount = 0;
 
@@ -500,7 +553,7 @@
                     } else {
                         backgroundColors.push('transparent');
                     }
-                }
+                });
 
                 chartInstance = new Chart(ctx, {
                     type: 'bar',
@@ -546,7 +599,7 @@
                     const m = MODELS[key];
                     if (m.active && m.data) {
                         const field = metricMap[currentMetric];
-                        const dataVals = (m.data[field] || []).slice(0, 72);
+                        const dataVals = visibleIndexes.map(index => (m.data[field] || [])[index] ?? null);
 
                         datasets.push({
                             label: m.name,
@@ -587,8 +640,7 @@
 
             const keys = Object.keys(MODELS);
 
-            for (let i = 0; i < 48; i++) {
-                if (!timeLabels[i]) break;
+            getVisibleTimeIndexes().forEach(i => {
                 const timeStr = new Date(timeLabels[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
 
                 const vals = keys.map(k => {
@@ -612,7 +664,7 @@
                     <td class="p-3">${vals[5] !== null && vals[5] !== undefined ? vals[5] + ' °C' : '--'}</td>
                 `;
                 tbody.appendChild(tr);
-            }
+            });
         }
     </script>
 </body>
