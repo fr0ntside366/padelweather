@@ -60,15 +60,15 @@
                 <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
                     <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> KMI Weerwaarschuwingen Ranst
                 </h2>
-                <span class="text-xs text-slate-400">Status gebaseerd op KMI drempelwaarden</span>
+                <span class="text-xs text-slate-400">Status gebaseerd op drempelwaarden</span>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="kmiAlertsContainer">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-temperature-high text-emerald-400 text-lg"></i>
                         <div>
                             <div class="text-xs font-medium text-slate-300">Temperatuur</div>
-                            <div class="text-xs text-slate-400" id="alertTempText">Geen extreme temperaturen</div>
+                            <div class="text-xs text-slate-400" id="alertTempText">Normale temperaturen</div>
                         </div>
                     </div>
                     <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
@@ -204,9 +204,7 @@
             </div>
 
             <!-- Model Toggles Grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="modelToggles">
-                <!-- Javascript will inject toggles here -->
-            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="modelToggles"></div>
         </section>
 
         <!-- Weather Chart Section -->
@@ -255,9 +253,7 @@
                             <th class="p-3 text-rose-400">KMI / ALARO (BE)</th>
                         </tr>
                     </thead>
-                    <tbody id="hourlyTableBody" class="divide-y divide-slate-700/50 text-slate-300">
-                        <!-- Javascript Table Rows -->
-                    </tbody>
+                    <tbody id="hourlyTableBody" class="divide-y divide-slate-700/50 text-slate-300"></tbody>
                 </table>
             </div>
         </section>
@@ -266,7 +262,7 @@
 
     <!-- Footer -->
     <footer class="bg-slate-950 border-t border-slate-800 py-6 text-center text-xs text-slate-500">
-        <p>Data direct afgehandeld via Open-Meteo Multi-Model & KMI / WMO Station Deurne (06450)</p>
+        <p>Data direct verwerkt via Open-Meteo Multi-Model & KMI / WMO Station Deurne (06450)</p>
         <p class="mt-1">Gemeente Ranst (Broechem, Emblem, Ölegem, Ranst) • Coördinaten: 51.189° N, 4.564° O</p>
     </footer>
 
@@ -278,23 +274,23 @@
         const KMI_DEURNE_LON = 4.460;
 
         const MODELS = {
-            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', color: '#ef4444', active: true },
-            gfs: { name: 'GFS', origin: 'NOAA (VS)', color: '#3b82f6', active: true },
-            icon: { name: 'ICON', origin: 'DWD (Duitsland)', color: '#10b981', active: true },
-            arome: { name: 'AROME', origin: 'Météo-France', color: '#f59e0b', active: true },
-            gem: { name: 'GEM', origin: 'Canada', color: '#a855f7', active: true },
-            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', color: '#f43f5e', active: true }
+            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', apiModel: 'ecmwf_ifs025', color: '#ef4444', active: true, data: null },
+            gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null },
+            icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
+            arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
+            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null }
         };
 
         let currentMetric = 'temperature';
-        let rawModelData = {};
         let kmiObservedData = null;
         let chartInstance = null;
+        let timeLabels = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             renderModelToggles();
             fetchAllData();
-            setInterval(fetchAllData, 15 * 60 * 1000); // 15m verversing
+            setInterval(fetchAllData, 15 * 60 * 1000);
         });
 
         function renderModelToggles() {
@@ -341,19 +337,31 @@
             if(icon) icon.classList.add('fa-spin');
 
             try {
-                // Fetch Multi-Model Data
-                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,windspeed_10m&models=ecmwf_ifs025,gfs_seamless,icon_seamless,meteofrance_arome_france,gem_seamless,best_match&timezone=Europe%2FBrussels`;
-                
-                // Fetch Live KMI Deurne Weather Station Observation Data
+                // 1. Fetch Live KMI Deurne Station Data
                 const kmiApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${KMI_DEURNE_LAT}&longitude=${KMI_DEURNE_LON}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FBrussels`;
-
-                const [modelRes, kmiRes] = await Promise.all([
-                    fetch(modelApiUrl),
-                    fetch(kmiApiUrl)
-                ]);
-
-                rawModelData = await modelRes.json();
+                const kmiRes = await fetch(kmiApiUrl);
                 kmiObservedData = await kmiRes.json();
+                processKMIStationData();
+
+                // 2. Fetch Models Individually for robust handling
+                const fetchPromises = Object.keys(MODELS).map(async (key) => {
+                    const m = MODELS[key];
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,windspeed_10m&models=${m.apiModel}&timezone=Europe%2FBrussels`;
+                    try {
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        if (data && data.hourly) {
+                            MODELS[key].data = data.hourly;
+                            if (timeLabels.length === 0 && data.hourly.time) {
+                                timeLabels = data.hourly.time.slice(0, 48);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Kon model ${key} niet laden:`, e);
+                    }
+                });
+
+                await Promise.all(fetchPromises);
 
                 updateDashboard();
                 document.getElementById('lastUpdateText').innerText = new Date().toLocaleTimeString('nl-BE', {hour: '2-digit', minute:'2-digit'});
@@ -364,15 +372,6 @@
             }
         }
 
-        function updateDashboard() {
-            if (!rawModelData || !rawModelData.hourly) return;
-
-            processKMIStationData();
-            processConsensus();
-            renderChart();
-            renderHourlyTable();
-        }
-
         function processKMIStationData() {
             if (!kmiObservedData || !kmiObservedData.current) return;
 
@@ -381,48 +380,46 @@
             document.getElementById('kmiObsWind').innerText = `${c.wind_speed_10m} km/h`;
             document.getElementById('kmiObsGusts').innerText = `${c.wind_gusts_10m} km/h`;
             document.getElementById('kmiObsPressure').innerText = `${c.surface_pressure} hPa | ${c.relative_humidity_2m}%`;
+        }
 
-            // Calculate Delta with Consensus
-            if (rawModelData.hourly && rawModelData.hourly.temperature_2m) {
-                const nowTemp = rawModelData.hourly.temperature_2m[0];
-                const delta = Math.abs(c.temperature_2m - nowTemp).toFixed(1);
-                document.getElementById('kmiDelta').innerText = `± ${delta} °C Afwijking`;
-            }
+        function updateDashboard() {
+            processConsensus();
+            renderChart();
+            renderHourlyTable();
         }
 
         function processConsensus() {
-            const h = rawModelData.hourly;
-            if (!h) return;
-
-            const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active);
+            const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
             if (activeKeys.length === 0) return;
 
-            const tempNowList = [
-                h.temperature_2m[0],
-                h.temperature_2m_gfs[0],
-                h.temperature_2m_icon[0],
-                h.temperature_2m_arome[0],
-                h.temperature_2m_gem[0]
-            ].filter(v => v !== undefined);
+            const tempNowList = activeKeys.map(k => MODELS[k].data.temperature_2m ? MODELS[k].data.temperature_2m[0] : null).filter(v => v !== null);
+            const rainNowList = activeKeys.map(k => MODELS[k].data.precipitation ? MODELS[k].data.precipitation[0] : 0);
+            const windNowList = activeKeys.map(k => MODELS[k].data.windspeed_10m ? MODELS[k].data.windspeed_10m[0] : 0);
+
+            if (tempNowList.length === 0) return;
 
             const minTemp = Math.min(...tempNowList).toFixed(1);
             const maxTemp = Math.max(...tempNowList).toFixed(1);
             const avgTemp = (tempNowList.reduce((a, b) => a + b, 0) / tempNowList.length).toFixed(1);
-
-            const rainNow = h.precipitation[0] || 0;
-            const windNow = h.windspeed_10m[0] || 0;
+            const avgRain = (rainNowList.reduce((a, b) => a + b, 0) / rainNowList.length).toFixed(1);
+            const avgWind = (windNowList.reduce((a, b) => a + b, 0) / windNowList.length).toFixed(1);
 
             document.getElementById('currentTemp').innerText = `${avgTemp}°C`;
             document.getElementById('tempRange').innerText = `Modellen spreiding: ${minTemp}°C - ${maxTemp}°C`;
-            document.getElementById('currentRain').innerText = `${rainNow} mm`;
-            document.getElementById('currentWind').innerText = `${windNow} km/h`;
+            document.getElementById('currentRain').innerText = `${avgRain} mm`;
+            document.getElementById('currentWind').innerText = `${avgWind} km/h`;
 
-            // Agreement % calculation
+            // Calculate KMI Delta
+            if (kmiObservedData && kmiObservedData.current) {
+                const kmiTemp = kmiObservedData.current.temperature_2m;
+                const delta = Math.abs(kmiTemp - avgTemp).toFixed(1);
+                document.getElementById('kmiDelta').innerText = `± ${delta} °C Afwijking`;
+            }
+
             const spread = Math.abs(maxTemp - minTemp);
             const agreement = Math.max(0, Math.min(100, Math.round(100 - (spread * 15))));
             document.getElementById('modelAgreement').innerText = `${agreement}%`;
-
-            document.getElementById('weatherCondition').innerText = rainNow > 0 ? "Kans op neerslag" : "Droog / Wisselvallig";
+            document.getElementById('weatherCondition').innerText = avgRain > 0.1 ? "Kans op neerslag" : "Droog / Wisselvallig";
         }
 
         function switchChartMetric(metric) {
@@ -440,29 +437,29 @@
 
         function renderChart() {
             const ctx = document.getElementById('weatherChart').getContext('2d');
-            if (!rawModelData.hourly) return;
+            if (timeLabels.length === 0) return;
 
-            const times = rawModelData.hourly.time.slice(0, 48).map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+            const formattedTimes = timeLabels.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
 
-            const metricKeyMap = {
-                temperature: ['temperature_2m', 'temperature_2m_gfs', 'temperature_2m_icon', 'temperature_2m_arome', 'temperature_2m_gem'],
-                rain: ['precipitation', 'precipitation_gfs', 'precipitation_icon', 'precipitation_arome', 'precipitation_gem'],
-                wind: ['windspeed_10m', 'windspeed_10m_gfs', 'windspeed_10m_icon', 'windspeed_10m_arome', 'windspeed_10m_gem']
+            const metricMap = {
+                temperature: 'temperature_2m',
+                rain: 'precipitation',
+                wind: 'windspeed_10m'
             };
 
-            const modelKeys = ['ecmwf', 'gfs', 'icon', 'arome', 'gem', 'alaro'];
             const datasets = [];
 
-            modelKeys.forEach((key, idx) => {
-                if (MODELS[key].active) {
-                    const dataField = metricKeyMap[currentMetric][idx % metricKeyMap[currentMetric].length];
-                    const dataVals = (rawModelData.hourly[dataField] || rawModelData.hourly[metricKeyMap[currentMetric][0]]).slice(0, 48);
+            Object.keys(MODELS).forEach(key => {
+                const m = MODELS[key];
+                if (m.active && m.data) {
+                    const field = metricMap[currentMetric];
+                    const dataVals = (m.data[field] || []).slice(0, 48);
 
                     datasets.push({
-                        label: MODELS[key].name,
+                        label: m.name,
                         data: dataVals,
-                        borderColor: MODELS[key].color,
-                        backgroundColor: MODELS[key].color + '20',
+                        borderColor: m.color,
+                        backgroundColor: m.color + '20',
                         borderWidth: 2,
                         tension: 0.3,
                         pointRadius: 0
@@ -474,7 +471,7 @@
 
             chartInstance = new Chart(ctx, {
                 type: currentMetric === 'rain' ? 'bar' : 'line',
-                data: { labels: times, datasets: datasets },
+                data: { labels: formattedTimes, datasets: datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -493,35 +490,32 @@
         function renderHourlyTable() {
             const tbody = document.getElementById('hourlyTableBody');
             tbody.innerHTML = '';
-            if (!rawModelData.hourly) return;
+            if (timeLabels.length === 0) return;
 
-            const h = rawModelData.hourly;
+            const keys = Object.keys(MODELS);
 
             for (let i = 0; i < 24; i++) {
-                const timeStr = new Date(h.time[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
+                const timeStr = new Date(timeLabels[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
 
-                const vals = [
-                    h.temperature_2m[i],
-                    h.temperature_2m_gfs ? h.temperature_2m_gfs[i] : h.temperature_2m[i],
-                    h.temperature_2m_icon ? h.temperature_2m_icon[i] : h.temperature_2m[i],
-                    h.temperature_2m_arome ? h.temperature_2m_arome[i] : h.temperature_2m[i],
-                    h.temperature_2m_gem ? h.temperature_2m_gem[i] : h.temperature_2m[i],
-                    h.temperature_2m[i]
-                ];
+                const vals = keys.map(k => {
+                    const m = MODELS[k];
+                    return (m.data && m.data.temperature_2m) ? m.data.temperature_2m[i] : null;
+                });
 
-                const avg = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+                const validVals = vals.filter(v => v !== null);
+                const avg = validVals.length > 0 ? (validVals.reduce((a, b) => a + b, 0) / validVals.length).toFixed(1) : '--';
 
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-700/30 transition-colors";
                 tr.innerHTML = `
                     <td class="p-3 font-semibold sticky left-0 bg-slate-800 text-slate-200">${timeStr}</td>
                     <td class="p-3 bg-blue-950/20 text-blue-300 font-bold">${avg} °C</td>
-                    <td class="p-3">${vals[0]} °C</td>
-                    <td class="p-3">${vals[1]} °C</td>
-                    <td class="p-3">${vals[2]} °C</td>
-                    <td class="p-3">${vals[3]} °C</td>
-                    <td class="p-3">${vals[4]} °C</td>
-                    <td class="p-3">${vals[5]} °C</td>
+                    <td class="p-3">${vals[0] !== null ? vals[0] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[1] !== null ? vals[1] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[2] !== null ? vals[2] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[3] !== null ? vals[3] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[4] !== null ? vals[4] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[5] !== null ? vals[5] + ' °C' : '--'}</td>
                 `;
                 tbody.appendChild(tr);
             }
