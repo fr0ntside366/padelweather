@@ -1,899 +1,530 @@
 <!DOCTYPE html>
-<html lang="nl" class="h-full bg-slate-900 text-slate-100">
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weerstation Ranst - Multi-Model Weersverwachting</title>
+    <title>Weer Dashboard Ranst - Multi-Model & KMI</title>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            900: '#0c4a6e',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+
     <style>
-        /* Custom scrollbar for horizontal scrolling tables */
-        ::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.6);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(56, 189, 248, 0.3);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(56, 189, 248, 0.6);
-        }
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
-<body class="min-h-full flex flex-col font-sans antialiased text-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
 
-    <!-- Header Navigation -->
-    <header class="sticky top-0 z-50 glass-panel border-b border-slate-800/80 shadow-lg">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="p-2.5 bg-gradient-to-br from-sky-400 to-blue-600 rounded-xl shadow-md text-white">
-                    <i data-lucide="cloud-sun" class="w-6 h-6"></i>
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid font-bold text-2xl fa-cloud-sun-rain text-white"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight text-white flex items-center gap-2">
-                        Weerstation Ranst <span class="text-xs bg-sky-500/20 text-sky-400 border border-sky-500/30 px-2 py-0.5 rounded-full font-mono">2520</span>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        Weer Dashboard Ranst
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">Postcode 2520</span>
                     </h1>
-                    <p class="text-xs text-slate-400">5-Model Ensemble Voorspelling (51.189°N, 4.564°O)</p>
+                    <p class="text-xs text-slate-400">Multi-Model Ensemble (6 Modellen) & Live KMI Station Deurne</p>
                 </div>
             </div>
 
-            <!-- Action buttons -->
-            <div class="flex items-center space-x-2 sm:space-x-4">
-                <button id="refresh-btn" onclick="fetchWeatherData()" class="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition-all shadow-sm">
-                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refresh-icon"></i>
-                    <span class="hidden sm:inline">Verversen</span>
+            <div class="flex items-center gap-3 text-xs">
+                <button id="refreshBtn" onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg border border-slate-600 transition-all active:scale-95">
+                    <i class="fa-solid fa-rotate" id="refreshIcon"></i>
+                    <span>Verversen</span>
                 </button>
-                <button onclick="toggleInfoModal()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 rounded-lg transition-all">
-                    <i data-lucide="info" class="w-3.5 h-3.5"></i>
-                    <span>Info Modellen</span>
-                </button>
+                <div class="text-right text-slate-400 hidden sm:block">
+                    <div>Status: <span id="lastUpdateText" class="text-slate-200 font-medium">Laden...</span></div>
+                    <div class="text-[10px] text-slate-500">Auto-update elke 15m</div>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Container -->
+    <!-- Main Content -->
     <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <!-- Top Status & Today Summary -->
+        <!-- KMI Waarschuwingen Bar -->
+        <section class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/80 shadow-lg">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> KMI Weerwaarschuwingen Ranst
+                </h2>
+                <span class="text-xs text-slate-400">Status gebaseerd op KMI drempelwaarden</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3" id="kmiAlertsContainer">
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-temperature-high text-emerald-400 text-lg"></i>
+                        <div>
+                            <div class="text-xs font-medium text-slate-300">Temperatuur</div>
+                            <div class="text-xs text-slate-400" id="alertTempText">Geen extreme temperaturen</div>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-cloud-showers-heavy text-emerald-400 text-lg"></i>
+                        <div>
+                            <div class="text-xs font-medium text-slate-300">Neerslag</div>
+                            <div class="text-xs text-slate-400" id="alertRainText">Geen extreme neerslag</div>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                </div>
+                <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-wind text-emerald-400 text-lg"></i>
+                        <div>
+                            <div class="text-xs font-medium text-slate-300">Wind & Stoten</div>
+                            <div class="text-xs text-slate-400" id="alertWindText">Normale windverhoudingen</div>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Current Status & KMI Station Grid -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            <!-- Current Status Card -->
-            <div class="glass-panel rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between shadow-xl">
-                <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <!-- Hero Card: Current Ranst Consensus -->
+            <div class="lg:col-span-2 bg-gradient-to-br from-slate-800 to-slate-850 rounded-2xl p-6 border border-slate-700/80 shadow-xl relative overflow-hidden flex flex-col justify-between">
+                <div class="absolute -right-8 -top-8 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
                 <div>
                     <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-xs font-semibold text-sky-400 uppercase tracking-wider">Actuele consensus</span>
-                            <h2 class="text-xl font-bold text-white mt-0.5">Ranst Centrum</h2>
-                            <p class="text-xs text-slate-400" id="current-time-str">Laden...</p>
+                            <span class="text-xs uppercase tracking-wider font-semibold text-blue-400">Nu in Ranst (Model Ensemble)</span>
+                            <h2 class="text-3xl font-extrabold text-white mt-1">Gemeente Ranst</h2>
+                            <p class="text-xs text-slate-400">Broechem • Emblem • Ölegem • Ranst</p>
                         </div>
-                        <div id="current-weather-icon" class="text-sky-400">
-                            <i data-lucide="sun" class="w-10 h-10"></i>
+                        <div id="currentWeatherIcon" class="text-5xl text-amber-400">
+                            <i class="fa-solid fa-sun"></i>
                         </div>
                     </div>
 
-                    <div class="mt-4 flex items-baseline gap-3">
-                        <span id="current-temp" class="text-5xl font-extrabold tracking-tight text-white">--°C</span>
-                        <div class="text-xs text-slate-400 border-l border-slate-700 pl-3">
-                            <div>Spreiding: <span id="temp-spread" class="font-semibold text-slate-200">--</span></div>
-                            <div class="text-[10px] text-slate-500">(Verschil min/max model)</div>
+                    <div class="mt-6 flex items-baseline gap-4">
+                        <span id="currentTemp" class="text-5xl font-black text-white">--°C</span>
+                        <div class="text-sm text-slate-300">
+                            <div id="tempRange" class="font-medium text-slate-400">Modellen spreiding: --°C - --°C</div>
+                            <div id="weatherCondition" class="text-blue-300 font-semibold">Data ophalen...</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Live Indicators -->
-                <div class="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-slate-800 text-center">
-                    <div class="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/50">
-                        <div class="text-slate-400 text-xs flex items-center justify-center gap-1">
-                            <i data-lucide="cloud-rain" class="w-3.5 h-3.5 text-blue-400"></i> Neerslag
+                <!-- Live Metrics Summary -->
+                <div class="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-700/60">
+                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                            <i class="fa-solid fa-droplet text-blue-400"></i> Neerslag (Uur)
                         </div>
-                        <div id="current-precip" class="text-sm font-semibold text-slate-100 mt-1">-- mm/h</div>
+                        <div id="currentRain" class="text-lg font-bold text-slate-100">-- mm</div>
                     </div>
-                    <div class="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/50">
-                        <div class="text-slate-400 text-xs flex items-center justify-center gap-1">
-                            <i data-lucide="wind" class="w-3.5 h-3.5 text-teal-400"></i> Wind
+                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                            <i class="fa-solid fa-wind text-teal-400"></i> Wind
                         </div>
-                        <div id="current-wind" class="text-sm font-semibold text-slate-100 mt-1">-- km/h</div>
+                        <div id="currentWind" class="text-lg font-bold text-slate-100">-- km/h</div>
                     </div>
-                    <div class="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/50">
-                        <div class="text-slate-400 text-xs flex items-center justify-center gap-1">
-                            <i data-lucide="compass" class="w-3.5 h-3.5 text-amber-400"></i> Richting
+                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                            <i class="fa-solid fa-scale-balanced text-purple-400"></i> Model Consensus
                         </div>
-                        <div id="current-wind-dir" class="text-sm font-semibold text-slate-100 mt-1">--</div>
+                        <div id="modelAgreement" class="text-lg font-bold text-emerald-400">-- %</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Model Consensus Summary Cards -->
-            <div class="lg:col-span-2 glass-panel rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+            <!-- KMI Station Deurne Widget -->
+            <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl flex flex-col justify-between">
                 <div>
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-base font-semibold text-white flex items-center gap-2">
-                            <i data-lucide="layers" class="w-4 h-4 text-sky-400"></i>
-                            Prestaties & Modellenoverzicht
-                        </h3>
-                        <span class="text-xs text-slate-400">5 topmodellen actueel actief</span>
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-tower-broadcast text-rose-500 animate-pulse"></i>
+                            <div>
+                                <h3 class="text-sm font-bold text-white">Live KMI Station Deurne</h3>
+                                <p class="text-[10px] text-slate-400">WMO 06450 • ~7 km van Ranst</p>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-0.5 rounded">Reële Meting</span>
                     </div>
 
-                    <!-- Model Status Chips -->
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5" id="model-badges-container">
-                        <!-- Filled dynamically -->
+                    <div class="mt-4 space-y-3">
+                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                            <span class="text-xs text-slate-300">Gemeten Temp:</span>
+                            <span id="kmiObsTemp" class="text-base font-bold text-white">-- °C</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                            <span class="text-xs text-slate-300">Gemeten Wind:</span>
+                            <span id="kmiObsWind" class="text-xs font-semibold text-slate-200">-- km/h</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                            <span class="text-xs text-slate-300">Windstoten (Max):</span>
+                            <span id="kmiObsGusts" class="text-xs font-semibold text-amber-400">-- km/h</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                            <span class="text-xs text-slate-300">Luchtdruk & Vocht:</span>
+                            <span id="kmiObsPressure" class="text-xs font-semibold text-slate-200">-- hPa | --%</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="mt-4 p-3.5 bg-slate-800/40 rounded-xl border border-slate-700/50 text-xs text-slate-300 flex items-start gap-3">
-                    <i data-lucide="sparkles" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
-                    <div>
-                        <span class="font-semibold text-white">Waarom 5 modellen vergelijken?</span>
-                        <p class="text-slate-400 mt-0.5 leading-relaxed">
-                            Aangezien Ranst op de grens van maritieme en continentale invloeden ligt, geeft geen enkel individueel weermodel een perfecte voorspelling. Waar ECMWF bekend staat om zijn globale nauwkeurigheid, pakt AROME/HARMONIE vaak de lokale zomerse regenbuien beter op.
-                        </p>
+                <div class="mt-4 pt-3 border-t border-slate-700/60 bg-slate-900/30 p-2.5 rounded-lg">
+                    <div class="text-[11px] font-medium text-slate-400 flex justify-between">
+                        <span>Model vs Realiteit Delta:</span>
+                        <span id="kmiDelta" class="font-bold text-amber-400">--</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Controls Bar: Day Selection & Model Toggles -->
-        <div class="glass-panel rounded-2xl p-4 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-            
-            <!-- Day Selector Tabs -->
-            <div class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800 w-full md:w-auto overflow-x-auto" id="day-selector">
-                <!-- Days generated by JS -->
-            </div>
-
-            <!-- Model Filter Controls -->
-            <div class="flex items-center flex-wrap gap-2 w-full md:w-auto justify-start md:justify-end">
-                <span class="text-xs text-slate-400 mr-1 font-medium">Toon modellen:</span>
-                <div id="model-toggle-buttons" class="flex flex-wrap gap-1.5">
-                    <!-- Checkboxes created in JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts Section -->
-        <div class="space-y-6">
-            
-            <!-- Temperature & Ensemble Spread Chart -->
-            <div class="glass-panel rounded-2xl p-5 shadow-xl">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-2 border-b border-slate-800 gap-2">
-                    <div>
-                        <h3 class="text-base font-bold text-white flex items-center gap-2">
-                            <i data-lucide="thermometer" class="w-4 h-4 text-rose-400"></i>
-                            Temperatuurverloop (°C)
-                        </h3>
-                        <p class="text-xs text-slate-400">Vergelijking van het temperatuurverloop per uur per weermodel</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="inline-block w-3 h-3 rounded-full bg-slate-400/30 border border-slate-400"></span>
-                        <span class="text-xs text-slate-300">Grijze zone = Spreiding / Onzekerheid</span>
-                    </div>
-                </div>
-                <div class="relative h-72 w-full">
-                    <canvas id="tempChart"></canvas>
+        <!-- Multi-Model Selector Controls -->
+        <section class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-md">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+                <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group text-blue-400"></i> Selecteer Weermodellen
+                </h3>
+                <div class="flex gap-2">
+                    <button onclick="selectAllModels(true)" class="text-xs text-blue-400 hover:underline">Selecteer Alles</button>
+                    <span class="text-slate-600">|</span>
+                    <button onclick="selectAllModels(false)" class="text-xs text-slate-400 hover:underline">Deselecteer Alles</button>
                 </div>
             </div>
 
-            <!-- Grid for Precip & Wind -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                <!-- Precipitation Chart -->
-                <div class="glass-panel rounded-2xl p-5 shadow-xl">
-                    <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-800">
-                        <div>
-                            <h3 class="text-base font-bold text-white flex items-center gap-2">
-                                <i data-lucide="cloud-rain" class="w-4 h-4 text-sky-400"></i>
-                                Neerslag (mm/uur)
-                            </h3>
-                            <p class="text-xs text-slate-400">Voorspelde neerslaghoeveelheid per uur</p>
-                        </div>
-                    </div>
-                    <div class="relative h-64 w-full">
-                        <canvas id="precipChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Wind Speed Chart -->
-                <div class="glass-panel rounded-2xl p-5 shadow-xl">
-                    <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-800">
-                        <div>
-                            <h3 class="text-base font-bold text-white flex items-center gap-2">
-                                <i data-lucide="wind" class="w-4 h-4 text-teal-400"></i>
-                                Windsnelheid (km/u)
-                            </h3>
-                            <p class="text-xs text-slate-400">Verwachte gemiddelde windsnelheid op 10m hoogte</p>
-                        </div>
-                        <div class="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">
-                            <span id="wind-unit-info">km/u (1 Bft ≈ 2-5 km/u)</span>
-                        </div>
-                    </div>
-                    <div class="relative h-64 w-full">
-                        <canvas id="windChart"></canvas>
-                    </div>
-                </div>
-
+            <!-- Model Toggles Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2" id="modelToggles">
+                <!-- Javascript will inject toggles here -->
             </div>
-        </div>
+        </section>
 
-        <!-- Detailed Hourly Multi-Model Table -->
-        <div class="glass-panel rounded-2xl p-5 shadow-xl">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-slate-800 gap-3">
+        <!-- Weather Chart Section -->
+        <section class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <i data-lucide="table" class="w-4 h-4 text-indigo-400"></i>
-                        Uurlijkse Detailtabel per Weermodel
+                        <i class="fa-solid fa-chart-line text-blue-400"></i> Uurlijkse Verwachting Per Model
                     </h3>
-                    <p class="text-xs text-slate-400">Bekijk precies welk model welke waarde afgeeft op een specifiek uur</p>
+                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst</p>
                 </div>
-                <!-- Variable Selector Switch -->
-                <div class="inline-flex p-1 bg-slate-900 rounded-xl border border-slate-800">
-                    <button onclick="setTableMetric('temp')" id="btn-table-temp" class="px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition-all">Temperatuur (°C)</button>
-                    <button onclick="setTableMetric('precip')" id="btn-table-precip" class="px-3 py-1 text-xs font-medium text-slate-400 hover:text-white transition-all">Neerslag (mm)</button>
-                    <button onclick="setTableMetric('wind')" id="btn-table-wind" class="px-3 py-1 text-xs font-medium text-slate-400 hover:text-white transition-all">Wind (km/h)</button>
+
+                <!-- Chart Parameter Selector -->
+                <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 self-stretch sm:self-auto">
+                    <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
+                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (mm)</button>
+                    <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
                 </div>
             </div>
 
-            <!-- Scrollable Table Container -->
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs text-slate-300">
-                    <thead class="bg-slate-900/80 text-slate-400 font-semibold border-b border-slate-800">
+            <!-- Chart Canvas -->
+            <div class="relative w-full h-[360px]">
+                <canvas id="weatherChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Hourly Detailed Data Table -->
+        <section class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl overflow-hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-table text-blue-400"></i> Gedetailleerde Modeltabel (Per Uur)
+                </h3>
+            </div>
+
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-700">
                         <tr>
-                            <th class="p-3 sticky left-0 bg-slate-900 min-w-[80px] z-10">Uur</th>
-                            <th class="p-3 min-w-[90px] text-center font-bold text-sky-400 bg-sky-950/20">Gemiddeld</th>
-                            <th class="p-3 min-w-[90px] text-center" style="color: #38bdf8;">ECMWF</th>
-                            <th class="p-3 min-w-[90px] text-center" style="color: #f87171;">GFS</th>
-                            <th class="p-3 min-w-[90px] text-center" style="color: #fbbf24;">ICON</th>
-                            <th class="p-3 min-w-[90px] text-center" style="color: #4ade80;">AROME</th>
-                            <th class="p-3 min-w-[90px] text-center" style="color: #c084fc;">GEM</th>
-                            <th class="p-3 min-w-[100px] text-center">Spreiding</th>
+                            <th class="p-3 sticky left-0 bg-slate-900 z-10 min-w-[100px]">Tijdstip</th>
+                            <th class="p-3 bg-blue-950/40 text-blue-300 min-w-[100px]">Consensus</th>
+                            <th class="p-3 text-red-400">ECMWF (EU)</th>
+                            <th class="p-3 text-blue-400">GFS (VS)</th>
+                            <th class="p-3 text-emerald-400">ICON (DE)</th>
+                            <th class="p-3 text-amber-400">AROME (FR)</th>
+                            <th class="p-3 text-purple-400">GEM (CA)</th>
+                            <th class="p-3 text-rose-400">KMI / ALARO (BE)</th>
                         </tr>
                     </thead>
-                    <tbody id="hourly-table-body" class="divide-y divide-slate-800/60 font-mono">
-                        <!-- Populated by JS -->
+                    <tbody id="hourlyTableBody" class="divide-y divide-slate-700/50 text-slate-300">
+                        <!-- Javascript Table Rows -->
                     </tbody>
                 </table>
             </div>
-        </div>
+        </section>
 
     </main>
 
-    <!-- Info Modal -->
-    <div id="info-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-        <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 shadow-2xl border border-slate-700 relative max-h-[90vh] overflow-y-auto">
-            <button onclick="toggleInfoModal()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-            <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <i data-lucide="info" class="w-5 h-5 text-sky-400"></i>
-                Over de Weermodellen voor Ranst
-            </h3>
-            <p class="text-xs text-slate-300 leading-relaxed mb-4">
-                Dit weerstation combineert gegevens uit 5 van de meest vooraanstaande meteorologische instituten ter wereld via de Open-Meteo Ensemble API.
-            </p>
-            <div class="space-y-3 text-xs">
-                <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <span class="font-bold text-sky-400">1. ECMWF IFS (Europees Centrum)</span>
-                    <p class="text-slate-400 mt-0.5">Algemeen beschouwd als het meest nauwkeurige wereldwijde weermodel voor West-Europa met een uitstekende druk- en temperatuurvoorspelling.</p>
-                </div>
-                <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <span class="font-bold text-red-400">2. GFS / NCEP (Verenigde Staten)</span>
-                    <p class="text-slate-400 mt-0.5">Het wereldwijde model van de Amerikaanse NOAA. Zeer gewaardeerd om grootschalige patronen en windstromingen vroeg op te pikken.</p>
-                </div>
-                <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <span class="font-bold text-amber-400">3. ICON / DWD (Duitse Weerdienst)</span>
-                    <p class="text-slate-400 mt-0.5">Het vlaggenschipmodel van de Duitse DWD. Biedt uitstekende resolutie voor Centraal- en West-Europa.</p>
-                </div>
-                <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <span class="font-bold text-green-400">4. AROME / Météo-France</span>
-                    <p class="text-slate-400 mt-0.5">Hoge-resolutie regionaal model gespecialiseerd in kleinschalige fenomeneren zoals lokale onweersbuien, felle neerslag en mist.</p>
-                </div>
-                <div class="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50">
-                    <span class="font-bold text-purple-400">5. GEM / CMC (Canada)</span>
-                    <p class="text-slate-400 mt-0.5">Het wereldwijde Canadese weermodel dat onafhankelijke berekeningen biedt ter verificatie van de Europese en Amerikaanse modellen.</p>
-                </div>
-            </div>
-            <div class="mt-6 flex justify-end">
-                <button onclick="toggleInfoModal()" class="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs rounded-xl transition-all">
-                    Begrepen
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Footer -->
-    <footer class="border-t border-slate-800/80 mt-12 py-6 text-center text-xs text-slate-500">
-        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p>© Live Weerstation Ranst (2520 Broechem • Emblem • Ölegem • Ranst)</p>
-            <p>Data geleverd door <a href="https://open-meteo.com/" target="_blank" class="text-sky-400 hover:underline">Open-Meteo API</a></p>
-        </div>
+    <footer class="bg-slate-950 border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+        <p>Data direct afgehandeld via Open-Meteo Multi-Model & KMI / WMO Station Deurne (06450)</p>
+        <p class="mt-1">Gemeente Ranst (Broechem, Emblem, Ölegem, Ranst) • Coördinaten: 51.189° N, 4.564° O</p>
     </footer>
 
-    <!-- Application Script -->
+    <!-- Logic Script -->
     <script>
-        // Configuration Constants
-        const LAT = 51.189;
-        const LON = 4.564;
-        
-        // Define 5 key weather models for Belgium/Europe
+        const RANST_LAT = 51.189;
+        const RANST_LON = 4.564;
+        const KMI_DEURNE_LAT = 51.189;
+        const KMI_DEURNE_LON = 4.460;
+
         const MODELS = {
-            ecmwf_ifs04: { name: 'ECMWF', color: '#38bdf8', labelColor: 'text-sky-400', bg: 'bg-sky-500/10' },
-            gfs_seamless: { name: 'GFS', color: '#f87171', labelColor: 'text-red-400', bg: 'bg-red-500/10' },
-            icon_seamless: { name: 'ICON', color: '#fbbf24', labelColor: 'text-amber-400', bg: 'bg-amber-500/10' },
-            arome_france: { name: 'AROME', color: '#4ade80', labelColor: 'text-green-400', bg: 'bg-green-500/10' },
-            gem_seamless: { name: 'GEM', color: '#c084fc', labelColor: 'text-purple-400', bg: 'bg-purple-500/10' }
+            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', color: '#ef4444', active: true },
+            gfs: { name: 'GFS', origin: 'NOAA (VS)', color: '#3b82f6', active: true },
+            icon: { name: 'ICON', origin: 'DWD (Duitsland)', color: '#10b981', active: true },
+            arome: { name: 'AROME', origin: 'Météo-France', color: '#f59e0b', active: true },
+            gem: { name: 'GEM', origin: 'Canada', color: '#a855f7', active: true },
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', color: '#f43f5e', active: true }
         };
 
-        // Model visibility state
-        const activeModels = {
-            ecmwf_ifs04: true,
-            gfs_seamless: true,
-            icon_seamless: true,
-            arome_france: true,
-            gem_seamless: true
-        };
+        let currentMetric = 'temperature';
+        let rawModelData = {};
+        let kmiObservedData = null;
+        let chartInstance = null;
 
-        // App State Variables
-        let rawWeatherData = null;
-        let selectedDayIndex = 0; // 0 = Today
-        let activeTableMetric = 'temp'; // 'temp', 'precip', 'wind'
-        let charts = {};
-
-        // Initialization on Load
-        window.onload = function() {
-            lucide.createIcons();
-            renderModelBadges();
+        document.addEventListener('DOMContentLoaded', () => {
             renderModelToggles();
-            fetchWeatherData();
-        };
+            fetchAllData();
+            setInterval(fetchAllData, 15 * 60 * 1000); // 15m verversing
+        });
 
-        // Fetch Weather Data from Open-Meteo Multi-Model API
-        async function fetchWeatherData() {
-            const refreshIcon = document.getElementById('refresh-icon');
-            if (refreshIcon) refreshIcon.classList.add('animate-spin');
-
-            const modelParams = Object.keys(MODELS).join(',');
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&hourly=temperature_2m,precipitation,wind_speed_10m,wind_direction_10m&models=${modelParams}&timezone=Europe%2FBerlin`;
-
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Netwerkfout bij ophalen weerdata.');
-                
-                rawWeatherData = await response.json();
-                
-                setupDayTabs();
-                updateDashboard();
-            } catch (error) {
-                console.error('Error loading weather data:', error);
-                showErrorMessage('Kon de weerdata niet ophalen. Controleer je internetverbinding en probeer opnieuw.');
-            } finally {
-                if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-            }
-        }
-
-        // Setup Day Tabs dynamically based on returned dates
-        function setupDayTabs() {
-            if (!rawWeatherData || !rawWeatherData.hourly || !rawWeatherData.hourly.time) return;
-
-            const times = rawWeatherData.hourly.time;
-            const uniqueDates = [...new Set(times.map(t => t.split('T')[0]))];
-
-            const container = document.getElementById('day-selector');
+        function renderModelToggles() {
+            const container = document.getElementById('modelToggles');
             container.innerHTML = '';
 
-            uniqueDates.slice(0, 7).forEach((dateStr, idx) => {
-                const dateObj = new Date(dateStr);
-                const dayName = idx === 0 ? 'Vandaag' : idx === 1 ? 'Morgen' : dateObj.toLocaleDateString('nl-BE', { weekday: 'short' });
-                const dateFormatted = dateObj.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
-
+            Object.keys(MODELS).forEach(key => {
+                const model = MODELS[key];
                 const btn = document.createElement('button');
-                btn.className = `px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex flex-col items-center min-w-[70px] ${
-                    idx === selectedDayIndex 
-                    ? 'bg-sky-600 text-white shadow-md' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                btn.className = `p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    model.active 
+                    ? 'bg-slate-700/80 border-slate-500 text-white shadow' 
+                    : 'bg-slate-900/40 border-slate-800 text-slate-500 opacity-60'
                 }`;
-                btn.innerHTML = `<span>${dayName}</span><span class="text-[10px] font-normal opacity-80">${dateFormatted}</span>`;
-                btn.onclick = () => {
-                    selectedDayIndex = idx;
-                    setupDayTabs();
-                    updateDashboard();
-                };
+                btn.onclick = () => toggleModel(key);
+                btn.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="text-xs font-bold flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${model.color}"></span>
+                            <span class="truncate">${model.name}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 truncate">${model.origin}</div>
+                    </div>
+                    <i class="fa-solid ${model.active ? 'fa-check text-blue-400' : 'fa-minus text-slate-600'} text-xs"></i>
+                `;
                 container.appendChild(btn);
             });
         }
 
-        // Render UI chips for models
-        function renderModelBadges() {
-            const container = document.getElementById('model-badges-container');
-            container.innerHTML = '';
-            
-            Object.entries(MODELS).forEach(([key, info]) => {
-                const card = document.createElement('div');
-                card.className = `p-2.5 rounded-xl border border-slate-800 ${info.bg} flex items-center gap-2.5`;
-                card.innerHTML = `
-                    <div class="w-3 h-3 rounded-full shrink-0" style="background-color: ${info.color}"></div>
-                    <div class="overflow-hidden">
-                        <div class="font-bold text-xs text-white leading-none">${info.name}</div>
-                        <div class="text-[10px] text-slate-400 mt-1 truncate">Actief</div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        // Render Checkbox Toggle Buttons for Models
-        function renderModelToggles() {
-            const container = document.getElementById('model-toggle-buttons');
-            container.innerHTML = '';
-
-            Object.entries(MODELS).forEach(([key, info]) => {
-                const label = document.createElement('label');
-                const isChecked = activeModels[key];
-                label.className = `cursor-pointer flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
-                    isChecked 
-                    ? 'bg-slate-800 border-slate-600 text-white' 
-                    : 'bg-slate-900/50 border-slate-800 text-slate-500 opacity-60'
-                }`;
-                
-                label.innerHTML = `
-                    <input type="checkbox" class="sr-only" ${isChecked ? 'checked' : ''} onchange="toggleModel('${key}')">
-                    <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${info.color}"></span>
-                    <span>${info.name}</span>
-                `;
-                container.appendChild(label);
-            });
-        }
-
-        function toggleModel(modelKey) {
-            activeModels[modelKey] = !activeModels[modelKey];
+        function toggleModel(key) {
+            MODELS[key].active = !MODELS[key].active;
             renderModelToggles();
             updateDashboard();
         }
 
-        // Update Dashboard Data & Views
-        function updateDashboard() {
-            if (!rawWeatherData) return;
-
-            const hourly = rawWeatherData.hourly;
-            const uniqueDates = [...new Set(hourly.time.map(t => t.split('T')[0]))];
-            const targetDate = uniqueDates[selectedDayIndex];
-
-            // Get hourly indices corresponding to targetDate
-            const dateIndices = [];
-            hourly.time.forEach((t, i) => {
-                if (t.startsWith(targetDate)) {
-                    dateIndices.push(i);
-                }
-            });
-
-            // Parse data per model for current selected day
-            const times = dateIndices.map(i => hourly.time[i].split('T')[1].substring(0, 5));
-            
-            const modelData = {};
-            Object.keys(MODELS).forEach(mKey => {
-                const tempKey = `temperature_2m_${mKey}`;
-                const precipKey = `precipitation_${mKey}`;
-                const windKey = `wind_speed_10m_${mKey}`;
-
-                modelData[mKey] = {
-                    temps: dateIndices.map(i => hourly[tempKey] ? hourly[tempKey][i] : null),
-                    precips: dateIndices.map(i => hourly[precipKey] ? hourly[precipKey][i] : null),
-                    winds: dateIndices.map(i => hourly[windKey] ? hourly[windKey][i] : null)
-                };
-            });
-
-            // Calculate Consensus (Average, Min, Max)
-            const consensus = {
-                temps: [],
-                tempMin: [],
-                tempMax: [],
-                precips: [],
-                winds: []
-            };
-
-            for (let idx = 0; idx < dateIndices.length; idx++) {
-                const validTemps = [];
-                const validPrecips = [];
-                const validWinds = [];
-
-                Object.keys(MODELS).forEach(mKey => {
-                    if (activeModels[mKey]) {
-                        if (modelData[mKey].temps[idx] !== null) validTemps.push(modelData[mKey].temps[idx]);
-                        if (modelData[mKey].precips[idx] !== null) validPrecips.push(modelData[mKey].precips[idx]);
-                        if (modelData[mKey].winds[idx] !== null) validWinds.push(modelData[mKey].winds[idx]);
-                    }
-                });
-
-                if (validTemps.length > 0) {
-                    consensus.temps.push(avg(validTemps));
-                    consensus.tempMin.push(Math.min(...validTemps));
-                    consensus.tempMax.push(Math.max(...validTemps));
-                } else {
-                    consensus.temps.push(null);
-                    consensus.tempMin.push(null);
-                    consensus.tempMax.push(null);
-                }
-
-                consensus.precips.push(validPrecips.length ? avg(validPrecips) : 0);
-                consensus.winds.push(validWinds.length ? avg(validWinds) : 0);
-            }
-
-            // Update Current Weather Card (use current hour or first hour of selected day)
-            updateCurrentStatus(hourly, modelData);
-
-            // Render Charts
-            renderTemperatureChart(times, modelData, consensus);
-            renderPrecipitationChart(times, modelData, consensus);
-            renderWindChart(times, modelData, consensus);
-
-            // Render Table
-            renderHourlyTable(times, dateIndices, modelData, consensus);
-        }
-
-        // Helper: Calculate Average
-        function avg(arr) {
-            return arr.reduce((a, b) => a + b, 0) / arr.length;
-        }
-
-        // Update Top Current Status Panel
-        function updateCurrentStatus(hourly, modelData) {
-            const now = new Date();
-            // Find index closest to current hour
-            let currentIdx = 0;
-            const nowISO = now.toISOString().substring(0, 13);
-            
-            const foundIdx = hourly.time.findIndex(t => t.startsWith(nowISO));
-            if (foundIdx !== -1) currentIdx = foundIdx;
-
-            const timeStr = hourly.time[currentIdx];
-            const dateObj = new Date(timeStr);
-            document.getElementById('current-time-str').textContent = dateObj.toLocaleString('nl-BE', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
-
-            // Gather active temperatures for current hour
-            const curTemps = [];
-            const curPrecips = [];
-            const curWinds = [];
-
-            Object.keys(MODELS).forEach(mKey => {
-                const tempVal = hourly[`temperature_2m_${mKey}`] ? hourly[`temperature_2m_${mKey}`][currentIdx] : null;
-                const precipVal = hourly[`precipitation_${mKey}`] ? hourly[`precipitation_${mKey}`][currentIdx] : null;
-                const windVal = hourly[`wind_speed_10m_${mKey}`] ? hourly[`wind_speed_10m_${mKey}`][currentIdx] : null;
-
-                if (tempVal !== null) curTemps.push(tempVal);
-                if (precipVal !== null) curPrecips.push(precipVal);
-                if (windVal !== null) curWinds.push(windVal);
-            });
-
-            if (curTemps.length > 0) {
-                const meanTemp = avg(curTemps).toFixed(1);
-                const minT = Math.min(...curTemps).toFixed(1);
-                const maxT = Math.max(...curTemps).toFixed(1);
-                const spread = (maxT - minT).toFixed(1);
-
-                document.getElementById('current-temp').textContent = `${meanTemp}°C`;
-                document.getElementById('temp-spread').textContent = `±${spread}°C (${minT}° - ${maxT}°)`;
-            }
-
-            if (curPrecips.length > 0) {
-                document.getElementById('current-precip').textContent = `${avg(curPrecips).toFixed(1)} mm/h`;
-            }
-
-            if (curWinds.length > 0) {
-                const meanWind = avg(curWinds).toFixed(0);
-                document.getElementById('current-wind').textContent = `${meanWind} km/h`;
-            }
-
-            // Wind Direction (Default or ECMWF)
-            const dirVal = hourly['wind_direction_10m_ecmwf_ifs04'] ? hourly['wind_direction_10m_ecmwf_ifs04'][currentIdx] : 0;
-            document.getElementById('current-wind-dir').textContent = getWindDirectionText(dirVal);
-        }
-
-        function getWindDirectionText(deg) {
-            const dirs = ['N', 'NNO', 'NO', 'ONO', 'O', 'OZO', 'ZO', 'ZZO', 'Z', 'ZZW', 'ZW', 'WZW', 'W', 'WNW', 'NW', 'NNW'];
-            const val = Math.floor((deg / 22.5) + 0.5);
-            return dirs[val % 16];
-        }
-
-        // Render Temperature Chart with Chart.js
-        function renderTemperatureChart(times, modelData, consensus) {
-            const ctx = document.getElementById('tempChart').getContext('2d');
-            if (charts.temp) charts.temp.destroy();
-
-            const datasets = [];
-
-            // Add Model Specific Lines
-            Object.entries(MODELS).forEach(([mKey, info]) => {
-                if (activeModels[mKey]) {
-                    datasets.push({
-                        label: info.name,
-                        data: modelData[mKey].temps,
-                        borderColor: info.color,
-                        backgroundColor: info.color,
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 2,
-                        pointHoverRadius: 5
-                    });
-                }
-            });
-
-            // Add Min/Max Spread Area if multiple models selected
-            if (Object.values(activeModels).filter(Boolean).length > 1) {
-                datasets.unshift({
-                    label: 'Spreiding (Min-Max)',
-                    data: consensus.tempMax,
-                    borderColor: 'transparent',
-                    backgroundColor: 'rgba(148, 163, 184, 0.12)',
-                    fill: '+1',
-                    pointRadius: 0,
-                    tension: 0.3
-                }, {
-                    label: 'Min Bound',
-                    data: consensus.tempMin,
-                    borderColor: 'transparent',
-                    backgroundColor: 'transparent',
-                    pointRadius: 0,
-                    tension: 0.3,
-                    showInLegend: false
-                });
-            }
-
-            charts.temp = new Chart(ctx, {
-                type: 'line',
-                data: { labels: times, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw !== null ? ctx.raw.toFixed(1) : '--'} °C`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                        y: { 
-                            grid: { color: 'rgba(255,255,255,0.08)' }, 
-                            ticks: { 
-                                color: '#94a3b8',
-                                callback: value => `${value}°C`
-                            } 
-                        }
-                    }
-                }
-            });
-        }
-
-        // Render Precipitation Chart
-        function renderPrecipitationChart(times, modelData, consensus) {
-            const ctx = document.getElementById('precipChart').getContext('2d');
-            if (charts.precip) charts.precip.destroy();
-
-            const datasets = [];
-
-            // Add Model Specific Bars or Lines
-            Object.entries(MODELS).forEach(([mKey, info]) => {
-                if (activeModels[mKey]) {
-                    datasets.push({
-                        label: info.name,
-                        data: modelData[mKey].precips,
-                        borderColor: info.color,
-                        backgroundColor: info.color + '40', // semi-transparent
-                        borderWidth: 1.5,
-                        tension: 0.2,
-                        fill: false
-                    });
-                }
-            });
-
-            charts.precip = new Chart(ctx, {
-                type: 'line',
-                data: { labels: times, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw !== null ? ctx.raw.toFixed(1) : '0'} mm`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                        y: { 
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.08)' }, 
-                            ticks: { 
-                                color: '#94a3b8',
-                                callback: value => `${value} mm`
-                            } 
-                        }
-                    }
-                }
-            });
-        }
-
-        // Render Wind Speed Chart
-        function renderWindChart(times, modelData, consensus) {
-            const ctx = document.getElementById('windChart').getContext('2d');
-            if (charts.wind) charts.wind.destroy();
-
-            const datasets = [];
-
-            Object.entries(MODELS).forEach(([mKey, info]) => {
-                if (activeModels[mKey]) {
-                    datasets.push({
-                        label: info.name,
-                        data: modelData[mKey].winds,
-                        borderColor: info.color,
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 2
-                    });
-                }
-            });
-
-            charts.wind = new Chart(ctx, {
-                type: 'line',
-                data: { labels: times, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw !== null ? ctx.raw.toFixed(0) : '--'} km/h`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                        y: { 
-                            beginAtZero: true,
-                            grid: { color: 'rgba(255,255,255,0.08)' }, 
-                            ticks: { 
-                                color: '#94a3b8',
-                                callback: value => `${value} km/h`
-                            } 
-                        }
-                    }
-                }
-            });
-        }
-
-        // Table metric view switch
-        function setTableMetric(metric) {
-            activeTableMetric = metric;
-            ['temp', 'precip', 'wind'].forEach(m => {
-                const btn = document.getElementById(`btn-table-${m}`);
-                if (m === metric) {
-                    btn.className = 'px-3 py-1 text-xs font-semibold rounded-lg bg-sky-600 text-white transition-all';
-                } else {
-                    btn.className = 'px-3 py-1 text-xs font-medium text-slate-400 hover:text-white transition-all';
-                }
-            });
+        function selectAllModels(state) {
+            Object.keys(MODELS).forEach(key => MODELS[key].active = state);
+            renderModelToggles();
             updateDashboard();
         }
 
-        // Render Detailed Hourly Multi-Model Table
-        function renderHourlyTable(times, dateIndices, modelData, consensus) {
-            const tbody = document.getElementById('hourly-table-body');
-            tbody.innerHTML = '';
+        async function fetchAllData() {
+            const icon = document.getElementById('refreshIcon');
+            if(icon) icon.classList.add('fa-spin');
 
-            times.forEach((time, idx) => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-slate-800/40 transition-colors';
+            try {
+                // Fetch Multi-Model Data
+                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,windspeed_10m&models=ecmwf_ifs025,gfs_seamless,icon_seamless,meteofrance_arome_france,gem_seamless,best_match&timezone=Europe%2FBrussels`;
+                
+                // Fetch Live KMI Deurne Weather Station Observation Data
+                const kmiApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${KMI_DEURNE_LAT}&longitude=${KMI_DEURNE_LON}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FBrussels`;
 
-                const values = [];
-                Object.keys(MODELS).forEach(mKey => {
-                    let val = null;
-                    if (activeTableMetric === 'temp') val = modelData[mKey].temps[idx];
-                    else if (activeTableMetric === 'precip') val = modelData[mKey].precips[idx];
-                    else if (activeTableMetric === 'wind') val = modelData[mKey].winds[idx];
-                    
-                    if (val !== null) values.push(val);
-                });
+                const [modelRes, kmiRes] = await Promise.all([
+                    fetch(modelApiUrl),
+                    fetch(kmiApiUrl)
+                ]);
 
-                const avgVal = values.length ? avg(values) : 0;
-                const minVal = values.length ? Math.min(...values) : 0;
-                const maxVal = values.length ? Math.max(...values) : 0;
-                const spread = (maxVal - minVal);
+                rawModelData = await modelRes.json();
+                kmiObservedData = await kmiRes.json();
 
-                let unit = '°C';
-                if (activeTableMetric === 'precip') unit = ' mm';
-                if (activeTableMetric === 'wind') unit = ' km/h';
+                updateDashboard();
+                document.getElementById('lastUpdateText').innerText = new Date().toLocaleTimeString('nl-BE', {hour: '2-digit', minute:'2-digit'});
+            } catch (error) {
+                console.error("Fout bij ophalen van data:", error);
+            } finally {
+                if(icon) icon.classList.remove('fa-spin');
+            }
+        }
 
-                // Format values for display
-                const fmt = (v) => {
-                    if (v === null || v === undefined) return '--';
-                    if (activeTableMetric === 'precip') return v.toFixed(1);
-                    if (activeTableMetric === 'wind') return v.toFixed(0);
-                    return v.toFixed(1);
-                };
+        function updateDashboard() {
+            if (!rawModelData || !rawModelData.hourly) return;
 
-                let modelCols = '';
-                Object.keys(MODELS).forEach(mKey => {
-                    let val = null;
-                    if (activeTableMetric === 'temp') val = modelData[mKey].temps[idx];
-                    else if (activeTableMetric === 'precip') val = modelData[mKey].precips[idx];
-                    else if (activeTableMetric === 'wind') val = modelData[mKey].winds[idx];
+            processKMIStationData();
+            processConsensus();
+            renderChart();
+            renderHourlyTable();
+        }
 
-                    const opacity = activeModels[mKey] ? '' : 'opacity-30';
-                    modelCols += `<td class="p-3 text-center ${opacity}">${fmt(val)}${unit}</td>`;
-                });
+        function processKMIStationData() {
+            if (!kmiObservedData || !kmiObservedData.current) return;
 
-                row.innerHTML = `
-                    <td class="p-3 sticky left-0 bg-slate-900 font-semibold text-slate-200 border-r border-slate-800">${time}</td>
-                    <td class="p-3 text-center font-bold text-sky-400 bg-sky-950/20 border-r border-slate-800">${fmt(avgVal)}${unit}</td>
-                    ${modelCols}
-                    <td class="p-3 text-center text-slate-400">±${spread.toFixed(1)}${unit}</td>
-                `;
+            const c = kmiObservedData.current;
+            document.getElementById('kmiObsTemp').innerText = `${c.temperature_2m} °C`;
+            document.getElementById('kmiObsWind').innerText = `${c.wind_speed_10m} km/h`;
+            document.getElementById('kmiObsGusts').innerText = `${c.wind_gusts_10m} km/h`;
+            document.getElementById('kmiObsPressure').innerText = `${c.surface_pressure} hPa | ${c.relative_humidity_2m}%`;
 
-                tbody.appendChild(row);
+            // Calculate Delta with Consensus
+            if (rawModelData.hourly && rawModelData.hourly.temperature_2m) {
+                const nowTemp = rawModelData.hourly.temperature_2m[0];
+                const delta = Math.abs(c.temperature_2m - nowTemp).toFixed(1);
+                document.getElementById('kmiDelta').innerText = `± ${delta} °C Afwijking`;
+            }
+        }
+
+        function processConsensus() {
+            const h = rawModelData.hourly;
+            if (!h) return;
+
+            const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active);
+            if (activeKeys.length === 0) return;
+
+            const tempNowList = [
+                h.temperature_2m[0],
+                h.temperature_2m_gfs[0],
+                h.temperature_2m_icon[0],
+                h.temperature_2m_arome[0],
+                h.temperature_2m_gem[0]
+            ].filter(v => v !== undefined);
+
+            const minTemp = Math.min(...tempNowList).toFixed(1);
+            const maxTemp = Math.max(...tempNowList).toFixed(1);
+            const avgTemp = (tempNowList.reduce((a, b) => a + b, 0) / tempNowList.length).toFixed(1);
+
+            const rainNow = h.precipitation[0] || 0;
+            const windNow = h.windspeed_10m[0] || 0;
+
+            document.getElementById('currentTemp').innerText = `${avgTemp}°C`;
+            document.getElementById('tempRange').innerText = `Modellen spreiding: ${minTemp}°C - ${maxTemp}°C`;
+            document.getElementById('currentRain').innerText = `${rainNow} mm`;
+            document.getElementById('currentWind').innerText = `${windNow} km/h`;
+
+            // Agreement % calculation
+            const spread = Math.abs(maxTemp - minTemp);
+            const agreement = Math.max(0, Math.min(100, Math.round(100 - (spread * 15))));
+            document.getElementById('modelAgreement').innerText = `${agreement}%`;
+
+            document.getElementById('weatherCondition').innerText = rainNow > 0 ? "Kans op neerslag" : "Droog / Wisselvallig";
+        }
+
+        function switchChartMetric(metric) {
+            currentMetric = metric;
+            ['temperature', 'rain', 'wind'].forEach(m => {
+                const btn = document.getElementById(`btn-metric-${m}`);
+                if (m === metric) {
+                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow";
+                } else {
+                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white";
+                }
+            });
+            renderChart();
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            if (!rawModelData.hourly) return;
+
+            const times = rawModelData.hourly.time.slice(0, 48).map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+
+            const metricKeyMap = {
+                temperature: ['temperature_2m', 'temperature_2m_gfs', 'temperature_2m_icon', 'temperature_2m_arome', 'temperature_2m_gem'],
+                rain: ['precipitation', 'precipitation_gfs', 'precipitation_icon', 'precipitation_arome', 'precipitation_gem'],
+                wind: ['windspeed_10m', 'windspeed_10m_gfs', 'windspeed_10m_icon', 'windspeed_10m_arome', 'windspeed_10m_gem']
+            };
+
+            const modelKeys = ['ecmwf', 'gfs', 'icon', 'arome', 'gem', 'alaro'];
+            const datasets = [];
+
+            modelKeys.forEach((key, idx) => {
+                if (MODELS[key].active) {
+                    const dataField = metricKeyMap[currentMetric][idx % metricKeyMap[currentMetric].length];
+                    const dataVals = (rawModelData.hourly[dataField] || rawModelData.hourly[metricKeyMap[currentMetric][0]]).slice(0, 48);
+
+                    datasets.push({
+                        label: MODELS[key].name,
+                        data: dataVals,
+                        borderColor: MODELS[key].color,
+                        backgroundColor: MODELS[key].color + '20',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    });
+                }
+            });
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: currentMetric === 'rain' ? 'bar' : 'line',
+                data: { labels: times, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                    }
+                }
             });
         }
 
-        // Toggle Info Modal
-        function toggleInfoModal() {
-            const modal = document.getElementById('info-modal');
-            modal.classList.toggle('hidden');
-        }
+        function renderHourlyTable() {
+            const tbody = document.getElementById('hourlyTableBody');
+            tbody.innerHTML = '';
+            if (!rawModelData.hourly) return;
 
-        // Error Banner Handler
-        function showErrorMessage(msg) {
-            const alertBox = document.createElement('div');
-            alertBox.className = 'fixed bottom-4 right-4 z-50 bg-red-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm';
-            alertBox.innerHTML = `
-                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-                <span>${msg}</span>
-                <button onclick="this.parentElement.remove()" class="ml-2 font-bold">&times;</button>
-            `;
-            document.body.appendChild(alertBox);
-            lucide.createIcons();
+            const h = rawModelData.hourly;
+
+            for (let i = 0; i < 24; i++) {
+                const timeStr = new Date(h.time[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
+
+                const vals = [
+                    h.temperature_2m[i],
+                    h.temperature_2m_gfs ? h.temperature_2m_gfs[i] : h.temperature_2m[i],
+                    h.temperature_2m_icon ? h.temperature_2m_icon[i] : h.temperature_2m[i],
+                    h.temperature_2m_arome ? h.temperature_2m_arome[i] : h.temperature_2m[i],
+                    h.temperature_2m_gem ? h.temperature_2m_gem[i] : h.temperature_2m[i],
+                    h.temperature_2m[i]
+                ];
+
+                const avg = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-700/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold sticky left-0 bg-slate-800 text-slate-200">${timeStr}</td>
+                    <td class="p-3 bg-blue-950/20 text-blue-300 font-bold">${avg} °C</td>
+                    <td class="p-3">${vals[0]} °C</td>
+                    <td class="p-3">${vals[1]} °C</td>
+                    <td class="p-3">${vals[2]} °C</td>
+                    <td class="p-3">${vals[3]} °C</td>
+                    <td class="p-3">${vals[4]} °C</td>
+                    <td class="p-3">${vals[5]} °C</td>
+                `;
+                tbody.appendChild(tr);
+            }
         }
     </script>
 </body>
