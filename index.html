@@ -18,19 +18,20 @@
         .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar { -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
 
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-50 shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div class="flex items-center gap-3">
                 <div class="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
                     <i class="fa-solid font-bold text-2xl fa-cloud-sun-rain text-white"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white flex flex-wrap items-center gap-2">
                         Weer Dashboard Ranst
                         <span class="text-xs font-semibold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">Postcode 2520</span>
                     </h1>
@@ -38,12 +39,12 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-3 text-xs">
-                <button id="refreshBtn" onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg border border-slate-600 transition-all active:scale-95">
+            <div class="flex items-center justify-between sm:justify-end gap-3 text-xs w-full sm:w-auto">
+                <button id="refreshBtn" onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg border border-slate-600 transition-all active:scale-95 min-h-11">
                     <i class="fa-solid fa-rotate" id="refreshIcon"></i>
                     <span>Verversen</span>
                 </button>
-                <div class="text-right text-slate-400 hidden sm:block">
+                <div class="text-right text-slate-400">
                     <div>Status: <span id="lastUpdateText" class="text-slate-200 font-medium">Laden...</span></div>
                     <div class="text-[10px] text-slate-500">Auto-update elke 15m</div>
                 </div>
@@ -52,11 +53,11 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
         <!-- KMI Waarschuwingen Bar -->
         <section class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/80 shadow-lg">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
                 <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
                     <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> KMI Weerwaarschuwingen Ranst
                 </h2>
@@ -100,23 +101,23 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <!-- Hero Card: Current Ranst Consensus -->
-            <div class="lg:col-span-2 bg-gradient-to-br from-slate-800 to-slate-850 rounded-2xl p-6 border border-slate-700/80 shadow-xl relative overflow-hidden flex flex-col justify-between">
+            <div class="lg:col-span-2 bg-gradient-to-br from-slate-800 to-slate-850 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl relative overflow-hidden flex flex-col justify-between">
                 <div class="absolute -right-8 -top-8 w-40 h-40 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
                 <div>
                     <div class="flex justify-between items-start">
                         <div>
                             <span class="text-xs uppercase tracking-wider font-semibold text-blue-400">Nu in Ranst (Model Ensemble)</span>
-                            <h2 class="text-3xl font-extrabold text-white mt-1">Gemeente Ranst</h2>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold text-white mt-1">Gemeente Ranst</h2>
                         </div>
-                        <div id="currentWeatherIcon" class="text-5xl text-amber-400">
+                        <div id="currentWeatherIcon" class="text-4xl sm:text-5xl text-amber-400">
                             <i class="fa-solid fa-sun"></i>
                         </div>
                     </div>
 
-                    <div class="mt-6 flex items-baseline gap-4">
-                        <span id="currentTemp" class="text-5xl font-black text-white">--°C</span>
-                        <div class="text-sm text-slate-300">
+                    <div class="mt-6 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                        <span id="currentTemp" class="text-4xl sm:text-5xl font-black text-white">--°C</span>
+                        <div class="text-xs sm:text-sm text-slate-300">
                             <div id="tempRange" class="font-medium text-slate-400">Modellen spreiding: --°C - --°C</div>
                             <div id="weatherCondition" class="text-blue-300 font-semibold">Data ophalen...</div>
                         </div>
@@ -124,21 +125,21 @@
                 </div>
 
                 <!-- Live Metrics Summary -->
-                <div class="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-700/60">
-                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                <div class="grid grid-cols-3 gap-2 sm:gap-4 mt-6 pt-4 sm:pt-6 border-t border-slate-700/60">
+                    <div class="bg-slate-900/40 p-2 sm:p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-[10px] sm:text-xs flex items-center gap-1 mb-1">
                             <i class="fa-solid fa-droplet text-blue-400"></i> Neerslag (Uur)
                         </div>
                         <div id="currentRain" class="text-lg font-bold text-slate-100">-- mm</div>
                     </div>
-                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                    <div class="bg-slate-900/40 p-2 sm:p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-[10px] sm:text-xs flex items-center gap-1 mb-1">
                             <i class="fa-solid fa-wind text-teal-400"></i> Wind
                         </div>
                         <div id="currentWind" class="text-lg font-bold text-slate-100">-- km/h</div>
                     </div>
-                    <div class="bg-slate-900/40 p-3 rounded-xl border border-slate-700/40">
-                        <div class="text-slate-400 text-xs flex items-center gap-1.5 mb-1">
+                    <div class="bg-slate-900/40 p-2 sm:p-3 rounded-xl border border-slate-700/40">
+                        <div class="text-slate-400 text-[10px] sm:text-xs flex items-center gap-1 mb-1">
                             <i class="fa-solid fa-scale-balanced text-purple-400"></i> Model Consensus
                         </div>
                         <div id="modelAgreement" class="text-lg font-bold text-emerald-400">-- %</div>
@@ -147,9 +148,9 @@
             </div>
 
             <!-- KMI Station Deurne Widget -->
-            <div class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl flex flex-col justify-between">
+            <div class="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl flex flex-col justify-between">
                 <div>
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+                    <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-700/60">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-tower-broadcast text-black bg-white rounded-full p-1 animate-pulse"></i>
                             <div>
@@ -157,23 +158,23 @@
                                 <p class="text-[10px] text-slate-400">WMO 06450 • ~7 km van Ranst</p>
                             </div>
                         </div>
-                        <span class="text-[10px] font-semibold bg-black text-white border border-white/30 px-2 py-0.5 rounded">Reële Meting</span>
+                        <span class="text-[10px] font-semibold bg-black text-white border border-white/30 px-2 py-0.5 rounded shrink-0">Reële Meting</span>
                     </div>
 
                     <div class="mt-4 space-y-3">
-                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="flex justify-between items-center gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
                             <span class="text-xs text-slate-300">Gemeten Temp:</span>
                             <span id="kmiObsTemp" class="text-base font-bold text-white">-- °C</span>
                         </div>
-                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="flex justify-between items-center gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
                             <span class="text-xs text-slate-300">Gemeten Wind:</span>
                             <span id="kmiObsWind" class="text-xs font-semibold text-slate-200">-- km/h</span>
                         </div>
-                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="flex justify-between items-center gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
                             <span class="text-xs text-slate-300">Windstoten (Max):</span>
                             <span id="kmiObsGusts" class="text-xs font-semibold text-amber-400">-- km/h</span>
                         </div>
-                        <div class="flex justify-between items-center bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="flex justify-between items-center gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
                             <span class="text-xs text-slate-300">Luchtdruk & Vocht:</span>
                             <span id="kmiObsPressure" class="text-xs font-semibold text-slate-200">-- hPa | --%</span>
                         </div>
@@ -191,11 +192,11 @@
 
         <!-- Multi-Model Selector Controls -->
         <section class="bg-slate-800 rounded-xl p-4 border border-slate-700/80 shadow-md">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
                 <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
                     <i class="fa-solid fa-layer-group text-blue-400"></i> Selecteer Weermodellen
                 </h3>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-x-2 gap-y-1">
                     <button onclick="selectAllModels(true)" class="text-xs text-blue-400 hover:underline">Selecteer Alles</button>
                     <span class="text-slate-600">|</span>
                     <button onclick="selectAllModels(false)" class="text-xs text-slate-400 hover:underline">Deselecteer Alles</button>
@@ -207,18 +208,18 @@
         </section>
 
         <!-- Weather Chart Section -->
-        <section class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl">
+        <section class="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
                         <i class="fa-solid fa-chart-line text-blue-400"></i> Weersverwachting per Model / Consensus
                     </h3>
-                    <p id="forecastPeriodDescription" class="text-xs text-slate-400">Verwachting voor vandaag in Ranst (Witte stippellijnen = start nieuwe dag)</p>
+                    <p id="forecastPeriodDescription" class="text-xs text-slate-400 mt-1">Verwachting voor vandaag in Ranst</p>
                 </div>
 
-                <div class="flex flex-col gap-2 self-stretch sm:items-end">
+                <div class="flex flex-col gap-2 self-stretch sm:items-end w-full sm:w-auto">
                     <label for="forecastPeriod" class="sr-only">Periode van de weersverwachting</label>
-                    <select id="forecastPeriod" onchange="switchForecastPeriod(this.value)" class="bg-slate-900/80 border border-slate-700/80 text-slate-200 text-xs rounded-lg px-3 py-2">
+                    <select id="forecastPeriod" onchange="switchForecastPeriod(this.value)" class="bg-slate-900/80 border border-slate-700/80 text-slate-200 text-sm rounded-lg px-3 py-2.5 min-h-11 w-full sm:w-auto">
                         <option value="today">Vandaag</option>
                         <option value="tomorrow">Morgen</option>
                         <option value="dayAfterTomorrow">Overmorgen</option>
@@ -226,30 +227,31 @@
                     </select>
 
                     <!-- Chart Parameter Selector -->
-                    <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80">
-                        <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
-                        <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (Overeenkomst %)</button>
-                        <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
+                    <div class="grid grid-cols-1 min-[420px]:grid-cols-3 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 w-full sm:w-auto">
+                        <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
+                        <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white">Neerslag (%)</button>
+                        <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
                     </div>
                 </div>
             </div>
 
             <!-- Chart Canvas -->
-            <div class="relative w-full h-[380px]">
+            <div class="relative w-full h-72 sm:h-[380px]">
                 <canvas id="weatherChart"></canvas>
             </div>
         </section>
 
         <!-- Hourly Detailed Data Table -->
-        <section class="bg-slate-800 rounded-2xl p-6 border border-slate-700/80 shadow-xl overflow-hidden">
-            <div class="flex justify-between items-center mb-4">
+        <section class="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl overflow-hidden">
+            <div class="flex justify-between items-start gap-2 mb-4">
                 <h3 class="text-base font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-table text-blue-400"></i> Gedetailleerde Modeltabel (Per Uur)
                 </h3>
             </div>
 
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-left text-xs">
+            <p class="text-xs text-slate-400 mb-2 sm:hidden">Veeg de tabel horizontaal om alle modellen te bekijken.</p>
+            <div class="overflow-x-auto overscroll-x-contain custom-scrollbar">
+                <table class="w-full min-w-[760px] text-left text-xs">
                     <thead class="bg-slate-900/80 text-slate-400 uppercase font-semibold text-[10px] tracking-wider border-b border-slate-700">
                         <tr>
                             <th class="p-3 sticky left-0 bg-slate-900 z-10 min-w-[100px]">Tijdstip</th>
@@ -469,9 +471,9 @@
             ['temperature', 'rain', 'wind'].forEach(m => {
                 const btn = document.getElementById(`btn-metric-${m}`);
                 if (m === metric) {
-                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow";
+                    btn.className = "px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow";
                 } else {
-                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white";
+                    btn.className = "px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white";
                 }
             });
             renderChart();
@@ -482,7 +484,7 @@
 
             currentForecastPeriod = period;
             document.getElementById('forecastPeriodDescription').innerText =
-                `Verwachting voor ${FORECAST_PERIODS[period].description} in Ranst (Witte stippellijnen = start nieuwe dag)`;
+                `Verwachting voor ${FORECAST_PERIODS[period].description} in Ranst`;
             renderChart();
             renderHourlyTable();
         }
