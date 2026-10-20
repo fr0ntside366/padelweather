@@ -212,21 +212,21 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-chart-line text-blue-400"></i> Uurlijkse Verwachting Per Model
+                        <i class="fa-solid fa-chart-line text-blue-400"></i> Uurlijkse / 15-Min Verwachting Per Model
                     </h3>
-                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst</p>
+                    <p class="text-xs text-slate-400">Vergelijk het verloop voor de komende 48 uur in Ranst (15-minuten neerslagresolutie)</p>
                 </div>
 
                 <!-- Chart Parameter Selector -->
                 <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 self-stretch sm:self-auto">
                     <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
-                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (mm)</button>
+                    <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Neerslag (15m/mm)</button>
                     <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
                 </div>
             </div>
 
             <!-- Chart Canvas -->
-            <div class="relative w-full h-[360px]">
+            <div class="relative w-full h-[380px]">
                 <canvas id="weatherChart"></canvas>
             </div>
         </section>
@@ -274,18 +274,19 @@
         const KMI_DEURNE_LON = 4.460;
 
         const MODELS = {
-            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', apiModel: 'ecmwf_ifs025', color: '#ef4444', active: true, data: null },
-            gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null },
-            icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
-            arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
-            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
-            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null }
+            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', apiModel: 'ecmwf_ifs025', color: '#ef4444', active: true, data: null, min15Data: null },
+            gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null, min15Data: null },
+            icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null, min15Data: null },
+            arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null, min15Data: null },
+            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null, min15Data: null },
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null, min15Data: null }
         };
 
         let currentMetric = 'temperature';
         let kmiObservedData = null;
         let chartInstance = null;
         let timeLabels = [];
+        let min15Labels = [];
 
         document.addEventListener('DOMContentLoaded', () => {
             renderModelToggles();
@@ -343,12 +344,20 @@
                 kmiObservedData = await kmiRes.json();
                 processKMIStationData();
 
-                // 2. Fetch Multi-Model Data in single unified request
+                // 2. Fetch Multi-Model Hourly Data (3 Days = 72h)
                 const modelList = Object.values(MODELS).map(m => m.apiModel).join(',');
-                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${modelList}&timezone=Europe%2FBrussels`;
+                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${modelList}&forecast_days=3&timezone=Europe%2FBrussels`;
 
                 const modelRes = await fetch(modelApiUrl);
                 const modelData = await modelRes.json();
+
+                // 3. Fetch 15-Minutely High-Resolution Rain Data
+                const min15ApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&minutely_15=precipitation&forecast_days=3&timezone=Europe%2FBrussels`;
+                let min15Data = null;
+                try {
+                    const min15Res = await fetch(min15ApiUrl);
+                    min15Data = await min15Res.json();
+                } catch(e) { console.warn("15-min data fallback", e); }
 
                 if (modelData && modelData.hourly) {
                     timeLabels = modelData.hourly.time ? modelData.hourly.time.slice(0, 48) : [];
@@ -357,7 +366,6 @@
                         const m = MODELS[key];
                         const suffix = `_${m.apiModel}`;
 
-                        // Extract data per model key
                         const tempKey = `temperature_2m${suffix}`;
                         const rainKey = `precipitation${suffix}`;
                         const windKey = `wind_speed_10m${suffix}`;
@@ -367,6 +375,15 @@
                             precipitation: modelData.hourly[rainKey] || modelData.hourly['precipitation'] || [],
                             wind_speed_10m: modelData.hourly[windKey] || modelData.hourly['wind_speed_10m'] || []
                         };
+                    });
+                }
+
+                if (min15Data && min15Data.minutely_15) {
+                    min15Labels = min15Data.minutely_15.time.slice(0, 192); // 48 uur * 4
+                    const min15Rain = min15Data.minutely_15.precipitation.slice(0, 192);
+                    
+                    Object.keys(MODELS).forEach(key => {
+                        MODELS[key].min15Data = min15Rain;
                     });
                 }
 
@@ -416,7 +433,6 @@
             document.getElementById('currentRain').innerText = `${avgRain} mm`;
             document.getElementById('currentWind').innerText = `${avgWind} km/h`;
 
-            // Calculate KMI Delta
             if (kmiObservedData && kmiObservedData.current) {
                 const kmiTemp = kmiObservedData.current.temperature_2m;
                 const delta = Math.abs(kmiTemp - avgTemp).toFixed(1);
@@ -444,9 +460,13 @@
 
         function renderChart() {
             const ctx = document.getElementById('weatherChart').getContext('2d');
-            if (timeLabels.length === 0) return;
+            
+            const is15Min = (currentMetric === 'rain' && min15Labels.length > 0);
+            const labelsSource = is15Min ? min15Labels : timeLabels;
 
-            const formattedTimes = timeLabels.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+            if (labelsSource.length === 0) return;
+
+            const formattedTimes = labelsSource.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
 
             const metricMap = {
                 temperature: 'temperature_2m',
@@ -458,9 +478,14 @@
 
             Object.keys(MODELS).forEach(key => {
                 const m = MODELS[key];
-                if (m.active && m.data) {
-                    const field = metricMap[currentMetric];
-                    const dataVals = (m.data[field] || []).slice(0, 48);
+                if (m.active) {
+                    let dataVals = [];
+                    if (is15Min && m.min15Data) {
+                        dataVals = m.min15Data;
+                    } else if (m.data) {
+                        const field = metricMap[currentMetric];
+                        dataVals = (m.data[field] || []).slice(0, 48);
+                    }
 
                     datasets.push({
                         label: m.name,
@@ -487,7 +512,7 @@
                         tooltip: { mode: 'index', intersect: false }
                     },
                     scales: {
-                        x: { ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: '#334155' } },
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
                         y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
                     }
                 }
@@ -501,7 +526,8 @@
 
             const keys = Object.keys(MODELS);
 
-            for (let i = 0; i < 24; i++) {
+            for (let i = 0; i < 36; i++) {
+                if (!timeLabels[i]) break;
                 const timeStr = new Date(timeLabels[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
 
                 const vals = keys.map(k => {
