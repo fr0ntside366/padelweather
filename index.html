@@ -278,4 +278,255 @@
             gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null },
             icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
             arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
-            gem: { name: 'GEM', origin
+            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null }
+        };
+
+        let currentMetric = 'temperature';
+        let kmiObservedData = null;
+        let chartInstance = null;
+        let timeLabels = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderModelToggles();
+            fetchAllData();
+            setInterval(fetchAllData, 15 * 60 * 1000);
+        });
+
+        function renderModelToggles() {
+            const container = document.getElementById('modelToggles');
+            container.innerHTML = '';
+
+            Object.keys(MODELS).forEach(key => {
+                const model = MODELS[key];
+                const btn = document.createElement('button');
+                btn.className = `p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    model.active 
+                    ? 'bg-slate-700/80 border-slate-500 text-white shadow' 
+                    : 'bg-slate-900/40 border-slate-800 text-slate-500 opacity-60'
+                }`;
+                btn.onclick = () => toggleModel(key);
+                btn.innerHTML = `
+                    <div class="overflow-hidden">
+                        <div class="text-xs font-bold flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${model.color}"></span>
+                            <span class="truncate">${model.name}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 truncate">${model.origin}</div>
+                    </div>
+                    <i class="fa-solid ${model.active ? 'fa-check text-blue-400' : 'fa-minus text-slate-600'} text-xs"></i>
+                `;
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleModel(key) {
+            MODELS[key].active = !MODELS[key].active;
+            renderModelToggles();
+            updateDashboard();
+        }
+
+        function selectAllModels(state) {
+            Object.keys(MODELS).forEach(key => MODELS[key].active = state);
+            renderModelToggles();
+            updateDashboard();
+        }
+
+        async function fetchAllData() {
+            const icon = document.getElementById('refreshIcon');
+            if(icon) icon.classList.add('fa-spin');
+
+            try {
+                // 1. Fetch Live KMI Deurne Station Data
+                const kmiApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${KMI_DEURNE_LAT}&longitude=${KMI_DEURNE_LON}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m&timezone=Europe%2FBrussels`;
+                const kmiRes = await fetch(kmiApiUrl);
+                kmiObservedData = await kmiRes.json();
+                processKMIStationData();
+
+                // 2. Fetch Multi-Model Data in single unified request
+                const modelList = Object.values(MODELS).map(m => m.apiModel).join(',');
+                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${modelList}&timezone=Europe%2FBrussels`;
+
+                const modelRes = await fetch(modelApiUrl);
+                const modelData = await modelRes.json();
+
+                if (modelData && modelData.hourly) {
+                    timeLabels = modelData.hourly.time ? modelData.hourly.time.slice(0, 48) : [];
+
+                    Object.keys(MODELS).forEach(key => {
+                        const m = MODELS[key];
+                        const suffix = `_${m.apiModel}`;
+
+                        // Extract data per model key
+                        const tempKey = `temperature_2m${suffix}`;
+                        const rainKey = `precipitation${suffix}`;
+                        const windKey = `wind_speed_10m${suffix}`;
+
+                        MODELS[key].data = {
+                            temperature_2m: modelData.hourly[tempKey] || modelData.hourly['temperature_2m'] || [],
+                            precipitation: modelData.hourly[rainKey] || modelData.hourly['precipitation'] || [],
+                            wind_speed_10m: modelData.hourly[windKey] || modelData.hourly['wind_speed_10m'] || []
+                        };
+                    });
+                }
+
+                updateDashboard();
+                document.getElementById('lastUpdateText').innerText = new Date().toLocaleTimeString('nl-BE', {hour: '2-digit', minute:'2-digit'});
+            } catch (error) {
+                console.error("Fout bij ophalen van data:", error);
+            } finally {
+                if(icon) icon.classList.remove('fa-spin');
+            }
+        }
+
+        function processKMIStationData() {
+            if (!kmiObservedData || !kmiObservedData.current) return;
+
+            const c = kmiObservedData.current;
+            document.getElementById('kmiObsTemp').innerText = `${c.temperature_2m} °C`;
+            document.getElementById('kmiObsWind').innerText = `${c.wind_speed_10m} km/h`;
+            document.getElementById('kmiObsGusts').innerText = `${c.wind_gusts_10m} km/h`;
+            document.getElementById('kmiObsPressure').innerText = `${c.surface_pressure} hPa | ${c.relative_humidity_2m}%`;
+        }
+
+        function updateDashboard() {
+            processConsensus();
+            renderChart();
+            renderHourlyTable();
+        }
+
+        function processConsensus() {
+            const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
+            if (activeKeys.length === 0) return;
+
+            const tempNowList = activeKeys.map(k => MODELS[k].data.temperature_2m ? MODELS[k].data.temperature_2m[0] : null).filter(v => v !== null && v !== undefined);
+            const rainNowList = activeKeys.map(k => MODELS[k].data.precipitation ? MODELS[k].data.precipitation[0] : 0);
+            const windNowList = activeKeys.map(k => MODELS[k].data.wind_speed_10m ? MODELS[k].data.wind_speed_10m[0] : 0);
+
+            if (tempNowList.length === 0) return;
+
+            const minTemp = Math.min(...tempNowList).toFixed(1);
+            const maxTemp = Math.max(...tempNowList).toFixed(1);
+            const avgTemp = (tempNowList.reduce((a, b) => a + b, 0) / tempNowList.length).toFixed(1);
+            const avgRain = (rainNowList.reduce((a, b) => a + b, 0) / rainNowList.length).toFixed(1);
+            const avgWind = (windNowList.reduce((a, b) => a + b, 0) / windNowList.length).toFixed(1);
+
+            document.getElementById('currentTemp').innerText = `${avgTemp}°C`;
+            document.getElementById('tempRange').innerText = `Modellen spreiding: ${minTemp}°C - ${maxTemp}°C`;
+            document.getElementById('currentRain').innerText = `${avgRain} mm`;
+            document.getElementById('currentWind').innerText = `${avgWind} km/h`;
+
+            // Calculate KMI Delta
+            if (kmiObservedData && kmiObservedData.current) {
+                const kmiTemp = kmiObservedData.current.temperature_2m;
+                const delta = Math.abs(kmiTemp - avgTemp).toFixed(1);
+                document.getElementById('kmiDelta').innerText = `± ${delta} °C Afwijking`;
+            }
+
+            const spread = Math.abs(maxTemp - minTemp);
+            const agreement = Math.max(0, Math.min(100, Math.round(100 - (spread * 15))));
+            document.getElementById('modelAgreement').innerText = `${agreement}%`;
+            document.getElementById('weatherCondition').innerText = avgRain > 0.1 ? "Kans op neerslag" : "Droog / Wisselvallig";
+        }
+
+        function switchChartMetric(metric) {
+            currentMetric = metric;
+            ['temperature', 'rain', 'wind'].forEach(m => {
+                const btn = document.getElementById(`btn-metric-${m}`);
+                if (m === metric) {
+                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-blue-600 text-white shadow";
+                } else {
+                    btn.className = "flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-white";
+                }
+            });
+            renderChart();
+        }
+
+        function renderChart() {
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            if (timeLabels.length === 0) return;
+
+            const formattedTimes = timeLabels.map(t => new Date(t).toLocaleTimeString('nl-BE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }));
+
+            const metricMap = {
+                temperature: 'temperature_2m',
+                rain: 'precipitation',
+                wind: 'wind_speed_10m'
+            };
+
+            const datasets = [];
+
+            Object.keys(MODELS).forEach(key => {
+                const m = MODELS[key];
+                if (m.active && m.data) {
+                    const field = metricMap[currentMetric];
+                    const dataVals = (m.data[field] || []).slice(0, 48);
+
+                    datasets.push({
+                        label: m.name,
+                        data: dataVals,
+                        borderColor: m.color,
+                        backgroundColor: m.color + '20',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        pointRadius: 0
+                    });
+                }
+            });
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: formattedTimes, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b', maxTicksLimit: 12 }, grid: { color: '#334155' } },
+                        y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+        }
+
+        function renderHourlyTable() {
+            const tbody = document.getElementById('hourlyTableBody');
+            tbody.innerHTML = '';
+            if (timeLabels.length === 0) return;
+
+            const keys = Object.keys(MODELS);
+
+            for (let i = 0; i < 24; i++) {
+                const timeStr = new Date(timeLabels[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
+
+                const vals = keys.map(k => {
+                    const m = MODELS[k];
+                    return (m.data && m.data.temperature_2m) ? m.data.temperature_2m[i] : null;
+                });
+
+                const validVals = vals.filter(v => v !== null && v !== undefined);
+                const avg = validVals.length > 0 ? (validVals.reduce((a, b) => a + b, 0) / validVals.length).toFixed(1) : '--';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-700/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-semibold sticky left-0 bg-slate-800 text-slate-200">${timeStr}</td>
+                    <td class="p-3 bg-blue-950/20 text-blue-300 font-bold">${avg} °C</td>
+                    <td class="p-3">${vals[0] !== null && vals[0] !== undefined ? vals[0] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[1] !== null && vals[1] !== undefined ? vals[1] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[2] !== null && vals[2] !== undefined ? vals[2] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[3] !== null && vals[3] !== undefined ? vals[3] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[4] !== null && vals[4] !== undefined ? vals[4] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[5] !== null && vals[5] !== undefined ? vals[5] + ' °C' : '--'}</td>
+                `;
+                tbody.appendChild(tr);
+            }
+        }
+    </script>
+</body>
+</html>
