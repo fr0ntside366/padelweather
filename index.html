@@ -274,12 +274,12 @@
         const KMI_DEURNE_LON = 4.460;
 
         const MODELS = {
-            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', apiModel: 'ecmwf_ifs025', color: '#ef4444', active: true, data: null, min15Data: null },
-            gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null, min15Data: null },
-            icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null, min15Data: null },
-            arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null, min15Data: null },
-            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null, min15Data: null },
-            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null, min15Data: null }
+            ecmwf: { name: 'ECMWF IFS', origin: 'Europees Centrum', apiModel: 'ecmwf_ifs025', color: '#ef4444', active: true, data: null },
+            gfs: { name: 'GFS', origin: 'NOAA (VS)', apiModel: 'gfs_seamless', color: '#3b82f6', active: true, data: null },
+            icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
+            arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
+            gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
+            alaro: { name: 'KMI / ALARO', origin: 'KMI (België)', apiModel: 'best_match', color: '#f43f5e', active: true, data: null }
         };
 
         let currentMetric = 'temperature';
@@ -344,48 +344,34 @@
                 kmiObservedData = await kmiRes.json();
                 processKMIStationData();
 
-                // 2. Fetch Multi-Model Hourly Data (3 Days = 72h)
-                const modelList = Object.values(MODELS).map(m => m.apiModel).join(',');
-                const modelApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&models=${modelList}&forecast_days=3&timezone=Europe%2FBrussels`;
-
-                const modelRes = await fetch(modelApiUrl);
-                const modelData = await modelRes.json();
-
-                // 3. Fetch 15-Minutely High-Resolution Rain Data
-                const min15ApiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&minutely_15=precipitation&forecast_days=3&timezone=Europe%2FBrussels`;
-                let min15Data = null;
-                try {
-                    const min15Res = await fetch(min15ApiUrl);
-                    min15Data = await min15Res.json();
-                } catch(e) { console.warn("15-min data fallback", e); }
-
-                if (modelData && modelData.hourly) {
-                    timeLabels = modelData.hourly.time ? modelData.hourly.time.slice(0, 48) : [];
-
-                    Object.keys(MODELS).forEach(key => {
-                        const m = MODELS[key];
-                        const suffix = `_${m.apiModel}`;
-
-                        const tempKey = `temperature_2m${suffix}`;
-                        const rainKey = `precipitation${suffix}`;
-                        const windKey = `wind_speed_10m${suffix}`;
-
-                        MODELS[key].data = {
-                            temperature_2m: modelData.hourly[tempKey] || modelData.hourly['temperature_2m'] || [],
-                            precipitation: modelData.hourly[rainKey] || modelData.hourly['precipitation'] || [],
-                            wind_speed_10m: modelData.hourly[windKey] || modelData.hourly['wind_speed_10m'] || []
-                        };
-                    });
-                }
-
-                if (min15Data && min15Data.minutely_15) {
-                    min15Labels = min15Data.minutely_15.time.slice(0, 192); // 48 uur * 4
-                    const min15Rain = min15Data.minutely_15.precipitation.slice(0, 192);
+                // 2. Fetch Multi-Model Data per model (met hourly én minutely_15 per model om unieke modelcurves te behouden)
+                const fetchPromises = Object.keys(MODELS).map(async (key) => {
+                    const m = MODELS[key];
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${RANST_LAT}&longitude=${RANST_LON}&hourly=temperature_2m,precipitation,wind_speed_10m&minutely_15=precipitation&models=${m.apiModel}&forecast_days=3&timezone=Europe%2FBrussels`;
                     
-                    Object.keys(MODELS).forEach(key => {
-                        MODELS[key].min15Data = min15Rain;
-                    });
-                }
+                    try {
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        if (data) {
+                            if (data.hourly) {
+                                MODELS[key].data = data.hourly;
+                                if (timeLabels.length === 0 && data.hourly.time) {
+                                    timeLabels = data.hourly.time.slice(0, 72);
+                                }
+                            }
+                            if (data.minutely_15) {
+                                MODELS[key].min15Data = data.minutely_15.precipitation.slice(0, 192); // 48 uur * 4
+                                if (min15Labels.length === 0 && data.minutely_15.time) {
+                                    min15Labels = data.minutely_15.time.slice(0, 192);
+                                }
+                            }
+                        }
+                    } catch(e) {
+                        console.warn(`Fout bij ophalen model ${key}:`, e);
+                    }
+                });
+
+                await Promise.all(fetchPromises);
 
                 updateDashboard();
                 document.getElementById('lastUpdateText').innerText = new Date().toLocaleTimeString('nl-BE', {hour: '2-digit', minute:'2-digit'});
@@ -484,7 +470,7 @@
                         dataVals = m.min15Data;
                     } else if (m.data) {
                         const field = metricMap[currentMetric];
-                        dataVals = (m.data[field] || []).slice(0, 48);
+                        dataVals = (m.data[field] || []).slice(0, labelsSource.length);
                     }
 
                     datasets.push({
@@ -526,7 +512,7 @@
 
             const keys = Object.keys(MODELS);
 
-            for (let i = 0; i < 36; i++) {
+            for (let i = 0; i < 48; i++) {
                 if (!timeLabels[i]) break;
                 const timeStr = new Date(timeLabels[i]).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', weekday: 'short' });
 
