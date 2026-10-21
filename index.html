@@ -273,6 +273,7 @@
                             <th class="p-3 text-emerald-400">ICON (DE)</th>
                             <th class="p-3 text-amber-400">AROME (FR)</th>
                             <th class="p-3 text-purple-400">GEM (CA)</th>
+                            <th class="p-3 text-cyan-300">ALADIN (CHMI)</th>
                             <th class="p-3 bg-white text-black">Open-Meteo</th>
                         </tr>
                     </thead>
@@ -307,7 +308,8 @@
             icon: { name: 'ICON', origin: 'DWD (Duitsland)', apiModel: 'icon_seamless', color: '#10b981', active: true, data: null },
             arome: { name: 'AROME', origin: 'Météo-France', apiModel: 'meteofrance_seamless', color: '#f59e0b', active: true, data: null },
             gem: { name: 'GEM', origin: 'Canada', apiModel: 'gem_seamless', color: '#a855f7', active: true, data: null },
-            alaro: { name: 'Open-Meteo', origin: 'Wereldwijd', apiModel: 'best_match', color: '#e2e8f0', active: true, data: null }
+            aladin: { name: 'ALADIN', origin: 'CHMI • Centraal-Europa • 3 dagen', apiModel: 'chmi_aladin_seamless', color: '#06b6d4', active: true, data: null },
+            bestMatch: { name: 'Open-Meteo', origin: 'Wereldwijd', apiModel: 'best_match', color: '#e2e8f0', active: true, data: null }
         };
 
         let currentMetric = 'temperature';
@@ -848,6 +850,7 @@
                     <td class="p-3">${vals[3] !== null && vals[3] !== undefined ? vals[3] + ' °C' : '--'}</td>
                     <td class="p-3">${vals[4] !== null && vals[4] !== undefined ? vals[4] + ' °C' : '--'}</td>
                     <td class="p-3">${vals[5] !== null && vals[5] !== undefined ? vals[5] + ' °C' : '--'}</td>
+                    <td class="p-3">${vals[6] !== null && vals[6] !== undefined ? vals[6] + ' °C' : '--'}</td>
                 `;
                 tbody.appendChild(tr);
             });
