@@ -328,7 +328,7 @@
         // Chart.js Plugin for vertical day-transition lines (Midnight lines)
         const midnightLinesPlugin = {
             id: 'midnightLines',
-            beforeDraw: (chart) => {
+            afterDatasetsDraw: (chart) => {
                 const ctx = chart.ctx;
                 const xAxis = chart.scales.x;
                 const yAxis = chart.scales.y;
@@ -349,6 +349,32 @@
                         ctx.stroke();
                     }
                 });
+
+                const currentTimeParts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: selectedLocation.timezone || 'UTC',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    hourCycle: 'h23'
+                }).formatToParts(new Date());
+                const currentTimeValues = Object.fromEntries(currentTimeParts.map(part => [part.type, part.value]));
+                const currentHourLabel = formatForecastTime(
+                    `${currentTimeValues.year}-${currentTimeValues.month}-${currentTimeValues.day}T${currentTimeValues.hour}:00`
+                );
+                const currentHourIndex = chart.data.labels.indexOf(currentHourLabel);
+
+                if (currentHourIndex !== -1) {
+                    const x = xAxis.getPixelForTick(currentHourIndex);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.stroke();
+                }
+
                 ctx.restore();
             }
         };
@@ -358,6 +384,7 @@
             updateLocationLabels();
             fetchAllData();
             setInterval(fetchAllData, 15 * 60 * 1000);
+            setInterval(() => chartInstance?.draw(), 60 * 1000);
 
             document.addEventListener('click', event => {
                 if (!document.getElementById('locationSearchForm').contains(event.target)) {
