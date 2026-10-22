@@ -365,7 +365,7 @@
                 const currentHourIndex = chart.data.labels.indexOf(currentHourLabel);
 
                 if (currentHourIndex !== -1) {
-                    const x = xAxis.getPixelForTick(currentHourIndex);
+                    const x = xAxis.getPixelForValue(currentHourIndex);
                     ctx.strokeStyle = '#ffffff';
                     ctx.lineWidth = 2;
                     ctx.setLineDash([4, 4]);
