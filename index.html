@@ -239,10 +239,11 @@
                     </select>
 
                     <!-- Chart Parameter Selector -->
-                    <div class="grid grid-cols-1 min-[420px]:grid-cols-3 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 w-full sm:w-auto">
+                    <div class="grid grid-cols-2 lg:grid-cols-4 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 w-full sm:w-auto">
                         <button onclick="switchChartMetric('temperature')" id="btn-metric-temperature" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow">Temperatuur (°C)</button>
                         <button onclick="switchChartMetric('rain')" id="btn-metric-rain" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white">Neerslag (mm/u)</button>
                         <button onclick="switchChartMetric('wind')" id="btn-metric-wind" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white">Wind (km/h)</button>
+                        <button onclick="switchChartMetric('sunshine')" id="btn-metric-sunshine" class="px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all text-slate-400 hover:text-white">Zonuren</button>
                     </div>
                 </div>
             </div>
@@ -666,7 +667,7 @@
                     const params = new URLSearchParams({
                         latitude: location.latitude,
                         longitude: location.longitude,
-                        hourly: 'temperature_2m,precipitation,wind_speed_10m',
+                        hourly: 'temperature_2m,precipitation,wind_speed_10m,sunshine_duration',
                         models: m.apiModel,
                         forecast_days: '7',
                         timezone: 'auto'
@@ -761,7 +762,7 @@
 
         function switchChartMetric(metric) {
             currentMetric = metric;
-            ['temperature', 'rain', 'wind'].forEach(m => {
+            ['temperature', 'rain', 'wind', 'sunshine'].forEach(m => {
                 const btn = document.getElementById(`btn-metric-${m}`);
                 if (m === metric) {
                     btn.className = "px-3 py-2.5 min-h-11 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow";
@@ -897,7 +898,8 @@
             } else {
                 const metricMap = {
                     temperature: 'temperature_2m',
-                    wind: 'wind_speed_10m'
+                    wind: 'wind_speed_10m',
+                    sunshine: 'sunshine_duration'
                 };
 
                 const datasets = [];
@@ -905,7 +907,11 @@
                     const m = MODELS[key];
                     if (m.active && m.data) {
                         const field = metricMap[currentMetric];
-                        const dataVals = visibleIndexes.map(index => (m.data[field] || [])[index] ?? null);
+                        const dataVals = visibleIndexes.map(index => {
+                            const value = (m.data[field] || [])[index];
+                            if (value === null || value === undefined) return null;
+                            return currentMetric === 'sunshine' ? value / 3600 : value;
+                        });
 
                         datasets.push({
                             label: m.name,
@@ -927,11 +933,29 @@
                         maintainAspectRatio: false,
                         plugins: {
                             legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-                            tooltip: { mode: 'index', intersect: false }
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                                callbacks: {
+                                    label: context => currentMetric === 'sunshine'
+                                        ? `${context.dataset.label}: ${context.parsed.y.toFixed(2)} zonuur`
+                                        : `${context.dataset.label}: ${context.formattedValue}`
+                                }
+                            }
                         },
                         scales: {
                             x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
-                            y: { ticks: { color: '#64748b' }, grid: { color: '#334155' } }
+                            y: {
+                                min: currentMetric === 'sunshine' ? 0 : undefined,
+                                max: currentMetric === 'sunshine' ? 1 : undefined,
+                                ticks: { color: '#64748b' },
+                                grid: { color: '#334155' },
+                                title: {
+                                    display: currentMetric === 'sunshine',
+                                    text: 'Zonuren per uur',
+                                    color: '#94a3b8'
+                                }
+                            }
                         }
                     },
                     plugins: [midnightLinesPlugin]
