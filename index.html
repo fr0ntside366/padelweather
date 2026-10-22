@@ -324,6 +324,92 @@
             dayAfterTomorrow: { offset: 2, days: 1, description: 'overmorgen' },
             next7Days: { offset: 0, days: 7, description: 'de komende 7 dagen' }
         };
+        const AGREEMENT_COLOR_STOPS = [
+            { position: 0, color: '#22d3ee' },
+            { position: 0.5, color: '#a855f7' },
+            { position: 1, color: '#1e3a8a' }
+        ];
+
+        function getAgreementColor(value) {
+            const position = Math.max(0, Math.min(100, value)) / 100;
+            const stopIndex = Math.min(
+                Math.floor(position * (AGREEMENT_COLOR_STOPS.length - 1)),
+                AGREEMENT_COLOR_STOPS.length - 2
+            );
+            const start = AGREEMENT_COLOR_STOPS[stopIndex];
+            const end = AGREEMENT_COLOR_STOPS[stopIndex + 1];
+            const progress = (position - start.position) / (end.position - start.position);
+            const startRgb = start.color.match(/[\da-f]{2}/gi).map(channel => parseInt(channel, 16));
+            const endRgb = end.color.match(/[\da-f]{2}/gi).map(channel => parseInt(channel, 16));
+            const rgb = startRgb.map((channel, index) => Math.round(channel + (endRgb[index] - channel) * progress));
+            return `rgb(${rgb.join(', ')})`;
+        }
+
+        const rainDayBandsPlugin = {
+            id: 'rainDayBands',
+            beforeDatasetsDraw: (chart, args, options) => {
+                const times = options.times || [];
+                const xAxis = chart.scales.x;
+                const chartArea = chart.chartArea;
+                if (!xAxis || !chartArea || times.length === 0) return;
+
+                const ctx = chart.ctx;
+                let groupStart = 0;
+                let dayGroup = 0;
+
+                ctx.save();
+                while (groupStart < times.length) {
+                    const date = times[groupStart].slice(0, 10);
+                    let groupEnd = groupStart;
+                    while (groupEnd + 1 < times.length && times[groupEnd + 1].slice(0, 10) === date) {
+                        groupEnd++;
+                    }
+
+                    const left = groupStart === 0
+                        ? chartArea.left
+                        : (xAxis.getPixelForValue(groupStart - 1) + xAxis.getPixelForValue(groupStart)) / 2;
+                    const right = groupEnd === times.length - 1
+                        ? chartArea.right
+                        : (xAxis.getPixelForValue(groupEnd) + xAxis.getPixelForValue(groupEnd + 1)) / 2;
+                    ctx.fillStyle = dayGroup % 2 === 0 ? 'rgba(71, 85, 105, 0.28)' : 'rgba(15, 23, 42, 0.18)';
+                    ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top);
+
+                    groupStart = groupEnd + 1;
+                    dayGroup++;
+                }
+                ctx.restore();
+            }
+        };
+
+        const agreementLegendPlugin = {
+            id: 'agreementLegend',
+            afterDraw: (chart) => {
+                const ctx = chart.ctx;
+                const centerX = chart.width / 2;
+                const legendWidth = Math.min(150, chart.width * 0.45);
+                const legendLeft = centerX - legendWidth / 2;
+                const gradientTop = chart.height - 24;
+                const gradient = ctx.createLinearGradient(legendLeft, 0, legendLeft + legendWidth, 0);
+
+                AGREEMENT_COLOR_STOPS.forEach(stop => gradient.addColorStop(stop.position, stop.color));
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = '600 11px Inter, sans-serif';
+                ctx.fillText('Modellen overeenkomst (%)', centerX, chart.height - 30);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(legendLeft, gradientTop, legendWidth, 7);
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '9px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('0', legendLeft, chart.height - 4);
+                ctx.textAlign = 'center';
+                ctx.fillText('50', centerX, chart.height - 4);
+                ctx.textAlign = 'right';
+                ctx.fillText('100', legendLeft + legendWidth, chart.height - 4);
+                ctx.restore();
+            }
+        };
 
         // Chart.js Plugin for vertical day-transition lines (Midnight lines)
         const midnightLinesPlugin = {
@@ -342,7 +428,7 @@
                 chart.data.labels.forEach((label, index) => {
                     // Check if this label indicates midnight (e.g. contains '00:00')
                     if (typeof label === 'string' && label.includes('00:00') && index > 0) {
-                        const x = xAxis.getPixelForTick(index);
+                        const x = xAxis.getPixelForValue(index);
                         ctx.beginPath();
                         ctx.moveTo(x, yAxis.top);
                         ctx.lineTo(x, yAxis.bottom);
@@ -746,6 +832,7 @@
             if (currentMetric === 'rain') {
                 const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
                 const rainData = [];
+                const agreementValues = [];
                 const backgroundColors = [];
 
                 visibleIndexes.forEach(i => {
@@ -762,18 +849,8 @@
                     const agreementPct = activeKeys.length > 0 ? (modelsRainCount / activeKeys.length) * 100 : 0;
 
                     rainData.push(avgRain.toFixed(2));
-
-                    if (agreementPct >= 80) {
-                        backgroundColors.push('#312e81');
-                    } else if (agreementPct >= 50) {
-                        backgroundColors.push('#4f46e5');
-                    } else if (agreementPct >= 25) {
-                        backgroundColors.push('#3b82f6');
-                    } else if (agreementPct > 0) {
-                        backgroundColors.push('#22d3ee');
-                    } else {
-                        backgroundColors.push('transparent');
-                    }
+                    agreementValues.push(agreementPct);
+                    backgroundColors.push(getAgreementColor(agreementPct));
                 });
 
                 chartInstance = new Chart(ctx, {
@@ -781,7 +858,7 @@
                     data: {
                         labels: formattedTimes,
                         datasets: [{
-                            label: 'Neerslag Consensus (mm/u - donkerder = meer modelovereenkomst)',
+                            label: 'Neerslag Consensus',
                             data: rainData,
                             backgroundColor: backgroundColors,
                             borderWidth: 0,
@@ -793,22 +870,28 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: { padding: { bottom: 44 } },
                         plugins: {
-                            legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                            legend: { display: false },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return ` Gemiddeld: ${context.raw} mm/u`;
+                                        return [
+                                            ` Gemiddeld: ${context.raw} mm/u`,
+                                            ` Modelovereenkomst: ${agreementValues[context.dataIndex].toFixed(0)}%`
+                                        ];
                                     }
-                                }
-                            }
+                                },
+                                displayColors: false
+                            },
+                            rainDayBands: { times: visibleTimes }
                         },
                         scales: {
                             x: { ticks: { color: '#64748b', maxTicksLimit: 16 }, grid: { color: '#334155' } },
                             y: { min: 0, max: 10, ticks: { color: '#64748b' }, grid: { color: '#334155' }, title: { display: true, text: 'Neerslag (mm/h)', color: '#94a3b8' } }
                         }
                     },
-                    plugins: [midnightLinesPlugin]
+                    plugins: [rainDayBandsPlugin, midnightLinesPlugin, agreementLegendPlugin]
                 });
 
             } else {
