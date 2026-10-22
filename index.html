@@ -235,6 +235,7 @@
                         <option value="today">Vandaag</option>
                         <option value="tomorrow">Morgen</option>
                         <option value="dayAfterTomorrow">Overmorgen</option>
+                        <option value="next3Days">Komende 3 dagen</option>
                         <option value="next7Days">Komende 7 dagen</option>
                     </select>
 
@@ -324,6 +325,7 @@
             today: { offset: 0, days: 1, description: 'vandaag' },
             tomorrow: { offset: 1, days: 1, description: 'morgen' },
             dayAfterTomorrow: { offset: 2, days: 1, description: 'overmorgen' },
+            next3Days: { offset: 0, days: 3, description: 'de komende 3 dagen' },
             next7Days: { offset: 0, days: 7, description: 'de komende 7 dagen' }
         };
         const AGREEMENT_COLOR_STOPS = [
