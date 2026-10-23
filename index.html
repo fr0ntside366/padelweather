@@ -253,6 +253,22 @@
             <div class="relative w-full h-72 sm:h-[380px]">
                 <canvas id="weatherChart"></canvas>
             </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-700/70">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+                    <h4 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-cloud-sun text-amber-300"></i> Weerbeeld per model
+                    </h4>
+                    <span class="text-xs text-slate-400">Per uur • zelfde periode als de grafiek</span>
+                </div>
+                <p id="modelWeatherEmpty" class="hidden text-xs text-slate-400 py-3">Geen actieve modellen met beschikbare weersymbolen.</p>
+                <div id="modelWeatherScroll" class="overflow-x-auto overscroll-x-contain custom-scrollbar">
+                    <table class="text-center text-xs" aria-label="Weersymbolen per model en uur">
+                        <thead id="modelWeatherHead" class="text-slate-400"></thead>
+                        <tbody id="modelWeatherBody" class="divide-y divide-slate-700/50"></tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <!-- Hourly Detailed Data Table -->
@@ -596,6 +612,7 @@
                 chartInstance.destroy();
                 chartInstance = null;
             }
+            renderModelWeather();
             document.getElementById('hourlyTableBody').replaceChildren();
             document.getElementById('lastUpdateText').textContent = 'Laden...';
             document.getElementById('currentTemp').textContent = '--°C';
@@ -675,7 +692,7 @@
                     const params = new URLSearchParams({
                         latitude: location.latitude,
                         longitude: location.longitude,
-                        hourly: 'temperature_2m,precipitation,wind_speed_10m,sunshine_duration',
+                        hourly: 'temperature_2m,precipitation,wind_speed_10m,sunshine_duration,weather_code,is_day',
                         minutely_15: 'sunshine_duration',
                         models: m.apiModel,
                         forecast_days: '7',
@@ -737,6 +754,7 @@
         function updateDashboard() {
             processConsensus();
             renderChart();
+            renderModelWeather();
             renderHourlyTable();
         }
 
@@ -793,7 +811,90 @@
             document.getElementById('forecastPeriodDescription').innerText =
                 `Verwachting voor ${FORECAST_PERIODS[period].description} in ${selectedLocation.name}`;
             renderChart();
+            renderModelWeather();
             renderHourlyTable();
+        }
+
+        function getWeatherSymbol(code, isDay) {
+            if (code === 0) return { icon: isDay ? 'fa-sun' : 'fa-moon', color: 'text-amber-300', label: isDay ? 'Onbewolkt' : 'Heldere nacht' };
+            if (code === 1) return { icon: isDay ? 'fa-cloud-sun' : 'fa-cloud-moon', color: 'text-amber-200', label: 'Overwegend helder' };
+            if (code === 2) return { icon: 'fa-cloud-sun', color: 'text-slate-300', label: 'Half bewolkt' };
+            if (code === 3) return { icon: 'fa-cloud', color: 'text-slate-300', label: 'Bewolkt' };
+            if (code === 45 || code === 48) return { icon: 'fa-smog', color: 'text-slate-400', label: 'Mist' };
+            if (code >= 51 && code <= 57) return { icon: 'fa-cloud-rain', color: 'text-sky-300', label: 'Motregen' };
+            if (code >= 61 && code <= 67) return { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Regen' };
+            if (code >= 71 && code <= 77) return { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuw' };
+            if (code >= 80 && code <= 82) return { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Regenbuien' };
+            if (code === 85 || code === 86) return { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuwbuien' };
+            if (code >= 95) return { icon: 'fa-cloud-bolt', color: 'text-yellow-300', label: 'Onweer' };
+            return { icon: 'fa-cloud', color: 'text-slate-500', label: 'Geen gegevens' };
+        }
+
+        function renderModelWeather() {
+            const head = document.getElementById('modelWeatherHead');
+            const body = document.getElementById('modelWeatherBody');
+            const empty = document.getElementById('modelWeatherEmpty');
+            const scroll = document.getElementById('modelWeatherScroll');
+            head.replaceChildren();
+            body.replaceChildren();
+
+            const visibleIndexes = getVisibleTimeIndexes();
+            const modelKeys = Object.keys(MODELS).filter(key =>
+                MODELS[key].active && MODELS[key].data && MODELS[key].data.weather_code
+            );
+
+            if (visibleIndexes.length === 0 || modelKeys.length === 0) {
+                empty.classList.remove('hidden');
+                scroll.classList.add('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            scroll.classList.remove('hidden');
+
+            const headerRow = document.createElement('tr');
+            const modelHeader = document.createElement('th');
+            modelHeader.scope = 'col';
+            modelHeader.className = 'sticky left-0 z-10 bg-slate-800 px-3 py-2 text-left font-semibold min-w-[110px]';
+            modelHeader.textContent = 'Model';
+            headerRow.appendChild(modelHeader);
+
+            visibleIndexes.forEach(index => {
+                const time = timeLabels[index];
+                const [weekday, hour] = formatForecastTime(time).split(' ');
+                const cell = document.createElement('th');
+                cell.scope = 'col';
+                cell.title = time.replace('T', ' ');
+                cell.className = 'min-w-[48px] px-1 py-2 font-medium';
+                cell.innerHTML = `<span class="block">${weekday}</span><span class="block text-slate-500">${hour}</span>`;
+                headerRow.appendChild(cell);
+            });
+            head.appendChild(headerRow);
+
+            modelKeys.forEach(key => {
+                const model = MODELS[key];
+                const row = document.createElement('tr');
+                const nameCell = document.createElement('th');
+                nameCell.scope = 'row';
+                nameCell.className = 'sticky left-0 z-10 bg-slate-800 px-3 py-2 text-left font-semibold whitespace-nowrap';
+                nameCell.style.color = model.color;
+                nameCell.textContent = model.name;
+                row.appendChild(nameCell);
+
+                visibleIndexes.forEach(index => {
+                    const code = model.data.weather_code[index];
+                    const symbol = getWeatherSymbol(code, model.data.is_day?.[index] === 1);
+                    const cell = document.createElement('td');
+                    cell.className = 'min-w-[48px] px-1 py-2';
+                    const icon = document.createElement('i');
+                    icon.className = `fa-solid ${symbol.icon} ${symbol.color}`;
+                    icon.title = symbol.label;
+                    icon.setAttribute('aria-label', symbol.label);
+                    cell.appendChild(icon);
+                    row.appendChild(cell);
+                });
+                body.appendChild(row);
+            });
         }
 
         function formatForecastTime(value) {
