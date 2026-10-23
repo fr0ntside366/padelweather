@@ -71,40 +71,40 @@
         <section id="kmiAlertsSection" class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/80 shadow-lg">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
                 <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> KMI Weerwaarschuwingen België
+                    <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Weerindicatie België
                 </h2>
-                <span class="text-xs text-slate-400">Status gebaseerd op drempelwaarden</span>
+                <span class="text-xs text-slate-400">Actuele waarden • geen officiële KMI-melding</span>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-temperature-high text-emerald-400 text-lg"></i>
+                            <i id="alertTempIcon" class="fa-solid fa-temperature-high text-slate-400 text-lg"></i>
                         <div>
                             <div class="text-xs font-medium text-slate-300">Temperatuur</div>
-                            <div class="text-xs text-slate-400" id="alertTempText">Normale temperaturen</div>
+                            <div class="text-xs text-slate-400" id="alertTempText">Gegevens laden...</div>
                         </div>
                     </div>
-                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                    <span id="alertTempLevel" class="px-2 py-1 text-[10px] font-bold rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">LADEN</span>
                 </div>
                 <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-cloud-showers-heavy text-emerald-400 text-lg"></i>
+                            <i id="alertRainIcon" class="fa-solid fa-cloud-showers-heavy text-slate-400 text-lg"></i>
                         <div>
                             <div class="text-xs font-medium text-slate-300">Neerslag</div>
-                            <div class="text-xs text-slate-400" id="alertRainText">Geen extreme neerslag</div>
+                            <div class="text-xs text-slate-400" id="alertRainText">Gegevens laden...</div>
                         </div>
                     </div>
-                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                    <span id="alertRainLevel" class="px-2 py-1 text-[10px] font-bold rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">LADEN</span>
                 </div>
                 <div class="bg-slate-900/60 p-3 rounded-lg border border-slate-700/50 flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-wind text-emerald-400 text-lg"></i>
+                            <i id="alertWindIcon" class="fa-solid fa-wind text-slate-400 text-lg"></i>
                         <div>
                             <div class="text-xs font-medium text-slate-300">Wind & Stoten</div>
-                            <div class="text-xs text-slate-400" id="alertWindText">Normale windverhoudingen</div>
+                            <div class="text-xs text-slate-400" id="alertWindText">Gegevens laden...</div>
                         </div>
                     </div>
-                    <span class="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">GROEN</span>
+                    <span id="alertWindLevel" class="px-2 py-1 text-[10px] font-bold rounded bg-slate-500/20 text-slate-400 border border-slate-500/30">LADEN</span>
                 </div>
             </div>
         </section>
@@ -674,6 +674,7 @@
             document.getElementById('locationCurrentGusts').textContent = '-- km/h';
             document.getElementById('locationCurrentPressure').textContent = '-- hPa | --%';
             document.getElementById('locationTempDelta').textContent = '--';
+            updateWeatherAlerts(null);
             updateLocationLabels();
             fetchAllData();
         }
@@ -793,6 +794,7 @@
 
             const current = locationCurrentData.current;
             const display = value => Number.isFinite(value) ? value : '--';
+            updateWeatherAlerts(current);
             document.getElementById('locationCurrentTemp').innerText = `${display(current.temperature_2m)} °C`;
             document.getElementById('locationCurrentWind').innerText = `${display(current.wind_speed_10m)} km/h`;
             document.getElementById('locationCurrentGusts').innerText = `${display(current.wind_gusts_10m)} km/h`;
@@ -810,17 +812,22 @@
             const activeKeys = Object.keys(MODELS).filter(k => MODELS[k].active && MODELS[k].data);
             if (activeKeys.length === 0) return;
 
-            const tempNowList = activeKeys.map(k => MODELS[k].data.temperature_2m ? MODELS[k].data.temperature_2m[0] : null).filter(v => v !== null && v !== undefined);
-            const rainNowList = activeKeys.map(k => MODELS[k].data.precipitation ? MODELS[k].data.precipitation[0] : 0);
-            const windNowList = activeKeys.map(k => MODELS[k].data.wind_speed_10m ? MODELS[k].data.wind_speed_10m[0] : 0);
+            const tempNowList = activeKeys.map(key => getModelValueAtCurrentTime(MODELS[key], 'temperature_2m')).filter(Number.isFinite);
+            const rainNowList = activeKeys.map(key => getModelValueAtCurrentTime(MODELS[key], 'precipitation')).filter(Number.isFinite);
+            const windNowList = activeKeys.map(key => getModelValueAtCurrentTime(MODELS[key], 'wind_speed_10m')).filter(Number.isFinite);
 
             if (tempNowList.length === 0) return;
 
             const minTemp = Math.min(...tempNowList).toFixed(1);
             const maxTemp = Math.max(...tempNowList).toFixed(1);
             const avgTemp = (tempNowList.reduce((a, b) => a + b, 0) / tempNowList.length).toFixed(1);
-            const avgRain = (rainNowList.reduce((a, b) => a + b, 0) / rainNowList.length).toFixed(1);
-            const avgWind = (windNowList.reduce((a, b) => a + b, 0) / windNowList.length).toFixed(1);
+            const avgRain = rainNowList.length > 0
+                ? (rainNowList.reduce((a, b) => a + b, 0) / rainNowList.length).toFixed(1)
+                : Number(locationCurrentData?.current?.precipitation ?? 0).toFixed(1);
+            const currentWind = windNowList.length > 0
+                ? windNowList.reduce((a, b) => a + b, 0) / windNowList.length
+                : locationCurrentData?.current?.wind_speed_10m;
+            const avgWind = Number.isFinite(currentWind) ? currentWind.toFixed(1) : '--';
 
             document.getElementById('currentTemp').innerText = `${avgTemp}°C`;
             document.getElementById('tempRange').innerText = `Modellen spreiding: ${minTemp}°C - ${maxTemp}°C`;
@@ -847,6 +854,78 @@
                 iconContainer.replaceChildren(icon);
                 document.getElementById('weatherCondition').innerText = symbol.label;
             }
+        }
+
+        function getModelValueAtCurrentTime(model, field) {
+            const currentTime = locationCurrentData?.current?.time;
+            const times = model.data?.time;
+            const values = model.data?.[field];
+            if (!currentTime || !Array.isArray(times) || !Array.isArray(values) || times.length === 0) return null;
+
+            let index = times.indexOf(currentTime);
+            if (index === -1) {
+                const targetTimestamp = Date.parse(currentTime);
+                index = times.reduce((closestIndex, time, candidateIndex) =>
+                    Math.abs(Date.parse(time) - targetTimestamp) < Math.abs(Date.parse(times[closestIndex]) - targetTimestamp)
+                        ? candidateIndex
+                        : closestIndex, 0);
+            }
+
+            return Number.isFinite(values[index]) ? values[index] : null;
+        }
+
+        function updateWeatherAlerts(current) {
+            const colors = {
+                green: ['text-emerald-400', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'],
+                yellow: ['text-amber-400', 'bg-amber-500/20 text-amber-400 border-amber-500/30'],
+                orange: ['text-orange-400', 'bg-orange-500/20 text-orange-400 border-orange-500/30'],
+                red: ['text-red-400', 'bg-red-500/20 text-red-400 border-red-500/30'],
+                unknown: ['text-slate-400', 'bg-slate-500/20 text-slate-400 border-slate-500/30']
+            };
+            const labels = { green: 'GROEN', yellow: 'GEEL', orange: 'ORANJE', red: 'ROOD', unknown: 'LADEN' };
+            const update = (key, severity, message) => {
+                const icon = document.getElementById(`alert${key}Icon`);
+                const level = document.getElementById(`alert${key}Level`);
+                const text = document.getElementById(`alert${key}Text`);
+                const color = colors[severity];
+                icon.className = `fa-solid ${icon.className.split(' ').find(className => className.startsWith('fa-') && className !== 'fa-solid')} ${color[0]} text-lg`;
+                level.className = `px-2 py-1 text-[10px] font-bold rounded border ${color[1]}`;
+                level.textContent = labels[severity];
+                text.textContent = message;
+            };
+
+            if (!current) {
+                update('Temp', 'unknown', 'Gegevens laden...');
+                update('Rain', 'unknown', 'Gegevens laden...');
+                update('Wind', 'unknown', 'Gegevens laden...');
+                return;
+            }
+
+            const temperature = current.temperature_2m;
+            const precipitation = current.precipitation;
+            const gusts = current.wind_gusts_10m;
+            const temperatureSeverity = !Number.isFinite(temperature) ? 'unknown'
+                : temperature <= -10 || temperature >= 40 ? 'red'
+                    : temperature <= -5 || temperature >= 35 ? 'orange'
+                        : temperature <= 0 || temperature >= 30 ? 'yellow' : 'green';
+            const rainSeverity = !Number.isFinite(precipitation) ? 'unknown'
+                : precipitation >= 15 ? 'red'
+                    : precipitation >= 7.5 ? 'orange'
+                        : precipitation >= 2 ? 'yellow' : 'green';
+            const windSeverity = !Number.isFinite(gusts) ? 'unknown'
+                : gusts >= 100 ? 'red'
+                    : gusts >= 70 ? 'orange'
+                        : gusts >= 50 ? 'yellow' : 'green';
+
+            update('Temp', temperatureSeverity, Number.isFinite(temperature)
+                ? `${temperature.toFixed(1)} °C • ${temperatureSeverity === 'green' ? 'Normaal' : 'Extreme temperatuur'}`
+                : 'Geen temperatuurdata');
+            update('Rain', rainSeverity, Number.isFinite(precipitation)
+                ? `${precipitation.toFixed(1)} mm/u • ${rainSeverity === 'green' ? 'Geen extreme neerslag' : 'Veel neerslag'}`
+                : 'Geen neerslagdata');
+            update('Wind', windSeverity, Number.isFinite(gusts)
+                ? `Stoten ${gusts.toFixed(1)} km/h • ${windSeverity === 'green' ? 'Normale wind' : 'Krachtige windstoten'}`
+                : 'Geen winddata');
         }
 
         function switchChartMetric(metric) {
