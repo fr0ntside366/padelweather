@@ -122,8 +122,8 @@
                             <span id="locationEyebrow" class="text-xs uppercase tracking-wider font-semibold text-blue-400">Nu in Ranst (Model Ensemble)</span>
                             <h2 id="locationHeading" class="text-2xl sm:text-3xl font-extrabold text-white mt-1">Ranst, België</h2>
                         </div>
-                        <div id="currentWeatherIcon" class="text-4xl sm:text-5xl text-amber-400">
-                            <i class="fa-solid fa-sun"></i>
+                        <div id="currentWeatherIcon" class="text-4xl sm:text-5xl text-slate-300">
+                            <i class="fa-solid fa-cloud"></i>
                         </div>
                     </div>
 
@@ -727,7 +727,7 @@
                 const currentParams = new URLSearchParams({
                     latitude: location.latitude,
                     longitude: location.longitude,
-                    current: 'temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m',
+                    current: 'temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m,weather_code,is_day',
                     timezone: 'auto'
                 });
                 const currentResponse = await fetch(`https://api.open-meteo.com/v1/forecast?${currentParams}`);
@@ -836,7 +836,17 @@
             const spread = Math.abs(maxTemp - minTemp);
             const agreement = Math.max(0, Math.min(100, Math.round(100 - (spread * 15))));
             document.getElementById('modelAgreement').innerText = `${agreement}%`;
-            document.getElementById('weatherCondition').innerText = avgRain > 0.1 ? "Kans op neerslag" : "Droog / Wisselvallig";
+            const current = locationCurrentData?.current;
+            if (Number.isFinite(current?.weather_code)) {
+                const symbol = getWeatherSymbol(current.weather_code, current.is_day === 1);
+                const icon = document.createElement('i');
+                icon.className = `fa-solid ${symbol.icon}`;
+                icon.setAttribute('aria-label', symbol.label);
+                const iconContainer = document.getElementById('currentWeatherIcon');
+                iconContainer.className = `text-4xl sm:text-5xl ${symbol.color}`;
+                iconContainer.replaceChildren(icon);
+                document.getElementById('weatherCondition').innerText = symbol.label;
+            }
         }
 
         function switchChartMetric(metric) {
