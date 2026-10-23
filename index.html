@@ -742,7 +742,7 @@
                     const params = new URLSearchParams({
                         latitude: location.latitude,
                         longitude: location.longitude,
-                        hourly: 'temperature_2m,precipitation,wind_speed_10m,sunshine_duration,weather_code,is_day',
+                        hourly: 'temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,sunshine_duration,weather_code,is_day',
                         minutely_15: 'sunshine_duration',
                         models: m.apiModel,
                         forecast_days: '7',
@@ -846,13 +846,15 @@
             document.getElementById('modelAgreement').innerText = `${agreement}%`;
             const current = locationCurrentData?.current;
             if (Number.isFinite(current?.weather_code)) {
-                const symbol = getWeatherSymbol(current.weather_code, current.is_day === 1);
-                const icon = document.createElement('i');
-                icon.className = `fa-solid ${symbol.icon}`;
-                icon.setAttribute('aria-label', symbol.label);
+                const symbol = getWeatherSymbol(
+                    current.weather_code,
+                    current.is_day === 1,
+                    current.wind_speed_10m,
+                    current.wind_gusts_10m
+                );
                 const iconContainer = document.getElementById('currentWeatherIcon');
                 iconContainer.className = `text-4xl sm:text-5xl ${symbol.color}`;
-                iconContainer.replaceChildren(icon);
+                iconContainer.replaceChildren(createWeatherIcon(symbol));
                 document.getElementById('weatherCondition').innerText = symbol.label;
             }
         }
@@ -959,19 +961,51 @@
             renderHourlyTable();
         }
 
-        function getWeatherSymbol(code, isDay) {
-            if (code === 0) return { icon: isDay ? 'fa-sun' : 'fa-moon', color: 'text-amber-300', label: isDay ? 'Onbewolkt' : 'Heldere nacht' };
-            if (code === 1) return { icon: isDay ? 'fa-cloud-sun' : 'fa-cloud-moon', color: 'text-amber-200', label: 'Overwegend helder' };
-            if (code === 2) return { icon: 'fa-cloud-sun', color: 'text-slate-300', label: 'Half bewolkt' };
-            if (code === 3) return { icon: 'fa-cloud', color: 'text-slate-300', label: 'Bewolkt' };
-            if (code === 45 || code === 48) return { icon: 'fa-smog', color: 'text-slate-400', label: 'Mist' };
-            if (code >= 51 && code <= 57) return { icon: 'fa-cloud-rain', color: 'text-sky-300', label: 'Motregen' };
-            if (code >= 61 && code <= 67) return { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Regen' };
-            if (code >= 71 && code <= 77) return { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuw' };
-            if (code >= 80 && code <= 82) return { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Regenbuien' };
-            if (code === 85 || code === 86) return { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuwbuien' };
-            if (code >= 95) return { icon: 'fa-cloud-bolt', color: 'text-yellow-300', label: 'Onweer' };
-            return { icon: 'fa-cloud', color: 'text-slate-500', label: 'Geen gegevens' };
+        function getWeatherSymbol(code, isDay, windSpeed, windGusts) {
+            let symbol;
+            if (code === 0) symbol = { icon: isDay ? 'fa-sun' : 'fa-moon', color: 'text-amber-300', label: isDay ? 'Onbewolkt' : 'Heldere nacht' };
+            else if (code === 1) symbol = { icon: isDay ? 'fa-cloud-sun' : 'fa-cloud-moon', color: 'text-amber-200', label: 'Overwegend helder' };
+            else if (code === 2) symbol = { icon: 'fa-cloud-sun', color: 'text-slate-300', label: 'Half bewolkt' };
+            else if (code === 3) symbol = { icon: 'fa-cloud', color: 'text-slate-300', label: 'Bewolkt' };
+            else if (code === 45 || code === 48) symbol = { icon: 'fa-smog', color: 'text-slate-400', label: 'Mist' };
+            else if (code === 51 || code === 53) symbol = { icon: 'fa-cloud-rain', color: 'text-sky-300', label: 'Lichte motregen' };
+            else if (code === 55 || code === 56 || code === 57) symbol = { icon: 'fa-cloud-showers-heavy', color: 'text-sky-300', label: 'Dichte motregen' };
+            else if (code === 61 || code === 80) symbol = { icon: 'fa-cloud-rain', color: 'text-blue-300', label: 'Lichte regen' };
+            else if (code === 63 || code === 81) symbol = { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Matige regen' };
+            else if (code === 65 || code === 66 || code === 67 || code === 82) symbol = { icon: 'fa-cloud-showers-heavy', color: 'text-blue-300', label: 'Zware regen' };
+            else if (code >= 71 && code <= 77) symbol = { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuw' };
+            else if (code === 85 || code === 86) symbol = { icon: 'fa-snowflake', color: 'text-cyan-200', label: 'Sneeuwbuien' };
+            else if (code >= 95) symbol = { icon: 'fa-cloud-bolt', color: 'text-yellow-300', label: 'Onweer' };
+            else symbol = { icon: 'fa-cloud', color: 'text-slate-500', label: 'Geen gegevens' };
+
+            const windy = (Number.isFinite(windSpeed) && windSpeed >= 40)
+                || (Number.isFinite(windGusts) && windGusts >= 55);
+            if (windy) {
+                if (['fa-sun', 'fa-moon', 'fa-cloud-sun', 'fa-cloud-moon', 'fa-cloud'].includes(symbol.icon)) {
+                    symbol.icon = 'fa-cloud';
+                }
+                symbol.label = `${symbol.label}, winderig`;
+            }
+            return { ...symbol, windy };
+        }
+
+        function createWeatherIcon(symbol) {
+            const container = document.createElement('span');
+            container.className = 'relative inline-flex items-center justify-center';
+
+            const weatherIcon = document.createElement('i');
+            weatherIcon.className = `fa-solid ${symbol.icon} ${symbol.color}`;
+            weatherIcon.setAttribute('aria-hidden', 'true');
+            container.appendChild(weatherIcon);
+
+            if (symbol.windy) {
+                const windIcon = document.createElement('i');
+                windIcon.className = 'fa-solid fa-wind absolute -right-2 -bottom-1 text-teal-300 text-[0.55em]';
+                windIcon.setAttribute('aria-hidden', 'true');
+                container.appendChild(windIcon);
+            }
+            container.setAttribute('aria-label', symbol.label);
+            return container;
         }
 
         function renderModelWeather() {
@@ -1036,14 +1070,19 @@
                 visibleTicks.forEach(tick => {
                     const index = getNearestTimeIndex(model.data.time, tick.time);
                     const code = index === -1 ? null : model.data.weather_code[index];
-                    const symbol = getWeatherSymbol(code, model.data.is_day?.[index] === 1);
+                    const symbol = getWeatherSymbol(
+                        code,
+                        model.data.is_day?.[index] === 1,
+                        model.data.wind_speed_10m?.[index],
+                        model.data.wind_gusts_10m?.[index]
+                    );
                     const icon = document.createElement('span');
                     icon.className = 'absolute top-1/2 -translate-x-1/2 -translate-y-1/2';
                     icon.style.left = `${tick.position}px`;
                     icon.setAttribute('role', 'cell');
                     icon.title = `${tick.time.replace('T', ' ')} • ${symbol.label}`;
                     icon.setAttribute('aria-label', `${tick.time.replace('T', ' ')}: ${symbol.label}`);
-                    icon.innerHTML = `<i class="fa-solid ${symbol.icon} ${symbol.color}" aria-hidden="true"></i>`;
+                    icon.appendChild(createWeatherIcon(symbol));
                     row.appendChild(icon);
                 });
                 body.appendChild(row);
