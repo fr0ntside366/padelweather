@@ -509,6 +509,7 @@
             document.getElementById('locationSearchInput').addEventListener('keydown', event => {
                 if (event.key === 'Escape') closeLocationResults();
             });
+            document.getElementById('locationSearchInput').addEventListener('focus', showCurrentLocationOption);
         });
 
         function getLocationLabel(location) {
@@ -542,6 +543,7 @@
 
             if (!query) {
                 showLocationSearchMessage('Vul een plaatsnaam in.');
+                appendCurrentLocationOption(resultsContainer);
                 return;
             }
 
@@ -562,6 +564,7 @@
                 }
 
                 resultsContainer.replaceChildren();
+                appendCurrentLocationOption(resultsContainer);
                 locations.forEach(location => {
                     const option = document.createElement('button');
                     option.type = 'button';
@@ -580,6 +583,51 @@
             } finally {
                 button.disabled = false;
             }
+        }
+
+        function showCurrentLocationOption() {
+            const resultsContainer = document.getElementById('locationSearchResults');
+            if (!resultsContainer.classList.contains('hidden')) return;
+            resultsContainer.replaceChildren();
+            appendCurrentLocationOption(resultsContainer);
+            resultsContainer.classList.remove('hidden');
+            document.getElementById('locationSearchInput').setAttribute('aria-expanded', 'true');
+        }
+
+        function appendCurrentLocationOption(container) {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.setAttribute('role', 'option');
+            option.className = 'flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-blue-300 hover:bg-slate-700 focus:bg-slate-700 focus:outline-none border-b border-slate-700';
+            option.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i><span>Mijn huidige locatie</span>';
+            option.addEventListener('click', useCurrentLocation);
+            container.appendChild(option);
+        }
+
+        function useCurrentLocation() {
+            const status = document.getElementById('locationSearchStatus');
+            if (!navigator.geolocation) {
+                showLocationSearchMessage('Locatie bepalen wordt niet ondersteund door deze browser.');
+                return;
+            }
+
+            showLocationSearchMessage('Huidige locatie ophalen...');
+            navigator.geolocation.getCurrentPosition(position => {
+                selectLocation({
+                    name: 'Mijn locatie',
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    timezone: 'auto'
+                });
+            }, error => {
+                const message = error.code === error.PERMISSION_DENIED
+                    ? 'Toegang tot je locatie is geweigerd.'
+                    : error.code === error.POSITION_UNAVAILABLE
+                        ? 'Je huidige locatie is niet beschikbaar.'
+                        : 'Het ophalen van je locatie duurde te lang.';
+                showLocationSearchMessage(message);
+                status.textContent = message;
+            }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
         }
 
         function showLocationSearchMessage(message) {
