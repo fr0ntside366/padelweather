@@ -260,6 +260,7 @@
                 <div class="flex flex-col gap-2 self-stretch sm:items-end w-full sm:w-auto">
                     <label for="forecastPeriod" class="sr-only">Periode van de weersverwachting</label>
                     <select id="forecastPeriod" onchange="switchForecastPeriod(this.value)" class="bg-slate-900/80 border border-slate-700/80 text-slate-200 text-sm rounded-lg px-3 py-2.5 min-h-11 w-full sm:w-auto">
+                        <option value="remainingHours">Komende uren</option>
                         <option value="today">Vandaag</option>
                         <option value="tomorrow">Morgen</option>
                         <option value="dayAfterTomorrow">Overmorgen</option>
@@ -385,6 +386,7 @@
         let locationSearchDebounce = null;
         let locationSearchRequestId = 0;
         const FORECAST_PERIODS = {
+            remainingHours: { offset: 0, days: 1, description: 'de komende uren tot middernacht', remainingToday: true },
             today: { offset: 0, days: 1, description: 'vandaag' },
             tomorrow: { offset: 1, days: 1, description: 'morgen' },
             dayAfterTomorrow: { offset: 2, days: 1, description: 'overmorgen' },
@@ -1451,10 +1453,22 @@
                 timeZone: selectedLocation.timezone || 'UTC',
                 year: 'numeric',
                 month: '2-digit',
-                day: '2-digit'
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23'
             }).formatToParts(new Date());
             const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
             const [year, month, day] = [dateValues.year, dateValues.month, dateValues.day].map(Number);
+            if (period.remainingToday) {
+                const currentDate = `${dateValues.year}-${dateValues.month}-${dateValues.day}`;
+                const currentLocalTime = `${currentDate}T${dateValues.hour}:${dateValues.minute}`;
+                return times.reduce((indexes, time, index) => {
+                    if (time.slice(0, 10) === currentDate && time >= currentLocalTime) indexes.push(index);
+                    return indexes;
+                }, []);
+            }
+
             const startDate = new Date(Date.UTC(year, month - 1, day + period.offset));
             const endDate = new Date(Date.UTC(year, month - 1, day + period.offset + period.days));
             const startDateString = startDate.toISOString().slice(0, 10);
