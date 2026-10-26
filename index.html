@@ -1,3 +1,7 @@
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2" id="modelToggles"></div>
+                btn.className = `min-w-0 gap-1 p-2 rounded-lg border text-left transition-all flex items-center justify-between ${
+                    <div class="min-w-0 flex-1 overflow-hidden">
+                    <i class="fa-solid ${model.active ? 'fa-check text-blue-400' : 'fa-minus text-slate-600'} text-xs shrink-0"></i>
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -916,7 +920,7 @@
                             : 'bg-red-500/10 text-red-300 border-red-500/30'
             }`;
 
-            const datasets = [{
+            const datasets = total > 0 ? [{
                 label: 'Neerslagintensiteit',
                 data: intensityValues,
                 borderColor: '#38bdf8',
@@ -927,7 +931,7 @@
                 fill: true,
                 tension: 0.35,
                 spanGaps: false
-            }];
+            }] : [];
 
             rainNowcastChartInstance = new Chart(canvas.getContext('2d'), {
                 type: 'line',
