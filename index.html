@@ -1,3 +1,4 @@
+                        hourly: 'temperature_2m,dew_point_2m,relative_humidity_2m,cloud_cover,precipitation,wind_speed_10m,wind_gusts_10m,sunshine_duration,weather_code,is_day',
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -326,6 +327,20 @@
                     <tbody id="hourlyTableBody" class="divide-y divide-slate-700/50 text-slate-300"></tbody>
                 </table>
             </div>
+        </section>
+
+        <section class="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-700/60">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-window-maximize text-sky-400"></i> Natte Ramen
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">Condensinschatting per halfuur voor de komende 12 uur</p>
+                </div>
+                <span class="text-[10px] text-slate-500">Inschatting op basis van luchtvochtigheid, bewolking, wind en dauwpunt</span>
+            </div>
+            <div id="windowWetnessTimeline" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2 mt-4" role="list" aria-label="Condensinschatting per halfuur"></div>
+            <p id="windowWetnessStatus" class="text-[10px] text-slate-500 mt-3">Condensrisico is een weersinschatting; de werkelijke temperatuur van het glas kan afwijken.</p>
         </section>
 
     </main>
@@ -742,6 +757,7 @@
                 chartInstance = null;
             }
             renderRainNowcast();
+            renderWindowWetness();
             renderModelWeather();
             document.getElementById('hourlyTableBody').replaceChildren();
             document.getElementById('lastUpdateText').textContent = 'Laden...';
@@ -892,6 +908,7 @@
             renderModelWeather();
             renderHourlyTable();
             renderRainNowcast();
+            renderWindowWetness();
         }
 
         function renderRainNowcast() {
@@ -1001,6 +1018,136 @@
                 }
             });
             statusElement.textContent = 'Open-Meteo • echte kwartierdata; hoge-resolutiemodellen waar beschikbaar. Geen radar-nowcast.';
+        }
+
+        function renderWindowWetness() {
+            const timeline = document.getElementById('windowWetnessTimeline');
+            const status = document.getElementById('windowWetnessStatus');
+            timeline.replaceChildren();
+
+            const currentTime = locationCurrentData?.current?.time;
+            if (!currentTime) {
+                status.textContent = 'Condensverwachting laden...';
+                return;
+            }
+
+            const activeModels = Object.values(MODELS).filter(model => model.active && model.data?.time);
+            if (activeModels.length === 0) {
+                status.textContent = 'Geen actieve weermodellen met condensdata beschikbaar.';
+                return;
+            }
+
+            const halfHourMs = 30 * 60 * 1000;
+            const currentTimestamp = Date.parse(`${currentTime}:00Z`);
+            const firstSlot = Math.ceil((currentTimestamp + 1) / halfHourMs) * halfHourMs;
+            const slots = Array.from({ length: 24 }, (_, index) =>
+                new Date(firstSlot + index * halfHourMs).toISOString().slice(0, 16)
+            );
+            const getValue = (model, field, slot) => {
+                const times = model.data.time;
+                const values = model.data[field];
+                if (!Array.isArray(values)) return null;
+                const target = Date.parse(`${slot}:00Z`);
+                const nextIndex = times.findIndex(time => Date.parse(`${time}:00Z`) >= target);
+                if (nextIndex === -1) return null;
+                const nextTime = Date.parse(`${times[nextIndex]}:00Z`);
+                if (nextTime === target) return Number.isFinite(values[nextIndex]) ? values[nextIndex] : null;
+                if (nextIndex === 0) return null;
+
+                const previousTime = Date.parse(`${times[nextIndex - 1]}:00Z`);
+                const previousValue = values[nextIndex - 1];
+                const nextValue = values[nextIndex];
+                if (!Number.isFinite(previousValue) || !Number.isFinite(nextValue)) return null;
+                const progress = (target - previousTime) / (nextTime - previousTime);
+                return previousValue + (nextValue - previousValue) * progress;
+            };
+            const clamp01 = value => Math.max(0, Math.min(1, value));
+            const levels = [
+                { label: 'Droog', color: 'text-emerald-300', border: 'border-emerald-500/20', drops: 0 },
+                { label: 'Beetje nat', color: 'text-sky-300', border: 'border-sky-500/25', drops: 1 },
+                { label: 'Nat', color: 'text-amber-300', border: 'border-amber-500/25', drops: 2 },
+                { label: 'Zeer nat', color: 'text-red-300', border: 'border-red-500/30', drops: 3 }
+            ];
+            let availableSlots = 0;
+
+            slots.forEach(slot => {
+                const modelSamples = activeModels.map(model => ({
+                    temperature: getValue(model, 'temperature_2m', slot),
+                    dewPoint: getValue(model, 'dew_point_2m', slot),
+                    humidity: getValue(model, 'relative_humidity_2m', slot),
+                    cloudCover: getValue(model, 'cloud_cover', slot),
+                    wind: getValue(model, 'wind_speed_10m', slot)
+                })).filter(sample => Object.values(sample).every(Number.isFinite));
+
+                const item = document.createElement('div');
+                item.className = 'min-w-0 rounded-lg border bg-slate-900/50 p-2 text-center ' +
+                    (modelSamples.length > 0 ? 'border-slate-700/50' : 'border-slate-700/30 opacity-70');
+                item.setAttribute('role', 'listitem');
+
+                const time = document.createElement('div');
+                time.className = 'text-[10px] font-semibold text-slate-300';
+                time.textContent = slot.slice(11, 16);
+                item.appendChild(time);
+
+                const windowIcon = document.createElement('div');
+                windowIcon.className = 'relative flex h-9 items-center justify-center';
+                const windowSymbol = document.createElement('i');
+                windowSymbol.className = `fa-solid fa-window-maximize text-xl ${modelSamples.length > 0 ? 'text-emerald-300' : 'text-slate-500'}`;
+                windowIcon.appendChild(windowSymbol);
+
+                let wetnessLabel = 'Geen data';
+                if (modelSamples.length > 0) {
+                    availableSlots++;
+                    const average = field => modelSamples.reduce((sum, sample) => sum + sample[field], 0) / modelSamples.length;
+                    const temperature = average('temperature');
+                    const dewPoint = average('dewPoint');
+                    const humidity = average('humidity');
+                    const cloudCover = average('cloudCover');
+                    const wind = average('wind');
+                    const dewPointGap = Math.max(0, temperature - dewPoint);
+                    const risk = Math.round((
+                        clamp01((humidity - 75) / 15) * 0.45 +
+                        clamp01((5 - dewPointGap) / 5) * 0.30 +
+                        clamp01((80 - cloudCover) / 80) * 0.15 +
+                        clamp01((10 - wind) / 10) * 0.10
+                    ) * 100);
+                    const levelIndex = risk < 25 ? 0 : risk < 45 ? 1 : risk < 70 ? 2 : 3;
+                    const level = levels[levelIndex];
+                    wetnessLabel = level.label;
+                    windowSymbol.className = `fa-solid fa-window-maximize text-xl ${level.color}`;
+
+                    if (level.drops > 0) {
+                        const drops = document.createElement('i');
+                        drops.className = `fa-solid ${level.drops === 3 ? 'fa-droplets' : 'fa-droplet'} absolute -right-1 top-0 ${level.color} text-xs`;
+                        windowIcon.appendChild(drops);
+                    }
+                    if (level.drops === 3) {
+                        const extraDrop = document.createElement('i');
+                        extraDrop.className = `fa-solid fa-droplet absolute -left-1 bottom-0 ${level.color} text-[9px]`;
+                        windowIcon.appendChild(extraDrop);
+                    }
+
+                    const detail = document.createElement('div');
+                    detail.className = 'text-[9px] text-slate-400 truncate';
+                    detail.textContent = `RV ${Math.round(humidity)}% · Δ ${dewPointGap.toFixed(1)}°`;
+                    item.appendChild(detail);
+                    item.title = `${slot.slice(11, 16)} • ${level.label} (${risk}% risico) • RV ${Math.round(humidity)}% • bewolking ${Math.round(cloudCover)}% • wind ${wind.toFixed(1)} km/u • temperatuur ${temperature.toFixed(1)}°C • dauwpunt ${dewPoint.toFixed(1)}°C • gebaseerd op ${modelSamples.length} model(len)`;
+                                    item.title = `${slot.slice(11, 16)} • ${level.label} (${risk}% risico) • RV ${Math.round(humidity)}% • bewolking ${Math.round(cloudCover)}% • wind ${wind.toFixed(1)} km/u • temperatuur ${temperature.toFixed(1)}°C • dauwpunt ${dewPoint.toFixed(1)}°C • gebaseerd op ${modelSamples.length} modellen`;
+                } else {
+                    item.title = `${slot.slice(11, 16)} • Geen condensdata beschikbaar`;
+                }
+
+                item.appendChild(windowIcon);
+                const label = document.createElement('div');
+                label.className = `text-[10px] font-medium ${modelSamples.length > 0 ? levels.find(level => level.label === wetnessLabel).color : 'text-slate-500'}`;
+                label.textContent = wetnessLabel;
+                item.appendChild(label);
+                timeline.appendChild(item);
+            });
+
+            status.textContent = availableSlots > 0
+                ? 'Risicoschatting uit actieve modeldata. RV en dauwpunt wegen het zwaarst; heldere lucht en weinig wind verhogen het risico. Geen meting van de baankooi zelf.'
+                : 'Geen bruikbare vochtigheids-, bewolkings- en dauwpuntdata voor deze periode.';
         }
 
         function processConsensus() {
