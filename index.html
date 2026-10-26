@@ -544,6 +544,10 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            const initialForecastPeriod = document.getElementById('forecastPeriod').value;
+            if (FORECAST_PERIODS[initialForecastPeriod]) {
+                currentForecastPeriod = initialForecastPeriod;
+            }
             renderModelToggles();
             updateLocationLabels();
             fetchAllData();
