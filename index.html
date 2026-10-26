@@ -160,6 +160,7 @@
             </div>
 
             <!-- Current Location Conditions -->
+            <div class="flex flex-col gap-6">
             <div class="bg-slate-800 rounded-2xl p-4 sm:p-6 border border-slate-700/80 shadow-xl flex flex-col justify-between">
                 <div>
                     <div class="flex items-start justify-between gap-2 pb-3 border-b border-slate-700/60">
@@ -199,6 +200,47 @@
                         <span id="locationTempDelta" class="font-bold text-amber-400">--</span>
                     </div>
                 </div>
+            </div>
+
+            <section class="bg-slate-800 rounded-2xl p-4 sm:p-5 border border-slate-700/80 shadow-xl">
+                <div class="flex items-start justify-between gap-3 pb-3 border-b border-slate-700/60">
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-cloud-rain text-sky-400"></i> Neerslag komende 3 uur
+                        </h3>
+                        <p class="text-[10px] text-slate-400 mt-1">Ensemble van de geselecteerde weermodellen</p>
+                    </div>
+                    <span id="rainNowcastIntensity" class="text-[10px] font-semibold bg-slate-700 text-slate-300 border border-slate-600 px-2 py-1 rounded shrink-0">LADEN</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-3">
+                    <div class="bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="text-[10px] text-slate-400">Verwacht in 3 uur</div>
+                        <div id="rainNowcastTotal" class="text-lg font-bold text-white">-- mm</div>
+                    </div>
+                    <div class="bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
+                        <div class="text-[10px] text-slate-400">Gemiddelde piek</div>
+                        <div id="rainNowcastPeak" class="text-lg font-bold text-sky-300">-- mm/u</div>
+                    </div>
+                </div>
+                <div class="relative h-36 mt-3">
+                    <canvas id="rainNowcastChart" role="img" aria-label="Neerslagverwachting per weermodel voor de komende drie uur"></canvas>
+                </div>
+                <p id="rainNowcastStatus" class="text-[10px] text-slate-500 mt-2">Uurlijkse modelverwachting; geen radar-nowcast.</p>
+                <div class="mt-3 overflow-x-auto custom-scrollbar">
+                    <table class="w-full min-w-[340px] text-[10px] text-left">
+                        <thead class="text-slate-400 border-b border-slate-700">
+                            <tr>
+                                <th class="py-1.5 pr-2 font-medium">Model</th>
+                                <th id="rainNowcastHour0" class="py-1.5 px-1 text-right font-medium">+1u</th>
+                                <th id="rainNowcastHour1" class="py-1.5 px-1 text-right font-medium">+2u</th>
+                                <th id="rainNowcastHour2" class="py-1.5 px-1 text-right font-medium">+3u</th>
+                                <th class="py-1.5 pl-1 text-right font-medium">Totaal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rainNowcastModels" class="divide-y divide-slate-700/50 text-slate-300"></tbody>
+                    </table>
+                </div>
+            </section>
             </div>
         </div>
 
@@ -334,6 +376,7 @@
         let currentForecastPeriod = 'today';
         let locationCurrentData = null;
         let chartInstance = null;
+        let rainNowcastChartInstance = null;
         let timeLabels = [];
         let chartTimeValues = [];
         let sunshineTimeLabels = [];
@@ -680,6 +723,7 @@
                 chartInstance.destroy();
                 chartInstance = null;
             }
+            renderRainNowcast();
             renderModelWeather();
             document.getElementById('hourlyTableBody').replaceChildren();
             document.getElementById('lastUpdateText').textContent = 'Laden...';
@@ -826,6 +870,175 @@
             renderChart();
             renderModelWeather();
             renderHourlyTable();
+            renderRainNowcast();
+        }
+
+        function renderRainNowcast() {
+            const totalElement = document.getElementById('rainNowcastTotal');
+            const peakElement = document.getElementById('rainNowcastPeak');
+            const intensityElement = document.getElementById('rainNowcastIntensity');
+            const statusElement = document.getElementById('rainNowcastStatus');
+            const tableBody = document.getElementById('rainNowcastModels');
+            const canvas = document.getElementById('rainNowcastChart');
+            const selectedModels = Object.keys(MODELS).filter(key => MODELS[key].active);
+            const activeModels = selectedModels
+                .filter(key => MODELS[key].active && MODELS[key].data?.time && MODELS[key].data?.precipitation);
+
+            if (rainNowcastChartInstance) {
+                rainNowcastChartInstance.destroy();
+                rainNowcastChartInstance = null;
+            }
+
+            if (!locationCurrentData?.current?.time) {
+                totalElement.textContent = '-- mm';
+                peakElement.textContent = '-- mm/u';
+                intensityElement.textContent = 'LADEN';
+                statusElement.textContent = 'Neerslagverwachting laden...';
+                tableBody.replaceChildren();
+                return;
+            }
+
+            if (selectedModels.length === 0 || activeModels.length === 0) {
+                totalElement.textContent = '-- mm';
+                peakElement.textContent = '-- mm/u';
+                intensityElement.textContent = 'GEEN DATA';
+                statusElement.textContent = selectedModels.length === 0
+                    ? 'Selecteer een model met beschikbare neerslagdata.'
+                    : 'De geselecteerde modellen hebben geen neerslagdata beschikbaar.';
+                tableBody.replaceChildren();
+                return;
+            }
+
+            const referenceTimes = MODELS[activeModels[0]].data.time;
+            const firstFutureIndex = referenceTimes.findIndex(time => time >= locationCurrentData.current.time);
+            const forecastTimes = firstFutureIndex === -1 ? [] : referenceTimes.slice(firstFutureIndex, firstFutureIndex + 3);
+            if (forecastTimes.length === 0) {
+                totalElement.textContent = '-- mm';
+                peakElement.textContent = '-- mm/u';
+                intensityElement.textContent = 'GEEN DATA';
+                statusElement.textContent = 'Geen neerslagverwachting beschikbaar voor de komende uren.';
+                tableBody.replaceChildren();
+                return;
+            }
+
+            forecastTimes.forEach((time, index) => {
+                document.getElementById(`rainNowcastHour${index}`).textContent = time.slice(11, 16);
+            });
+
+            const modelRows = activeModels.map(key => {
+                const model = MODELS[key];
+                const values = forecastTimes.map(time => {
+                    const index = getNearestTimeIndex(model.data.time, time);
+                    const value = index === -1 ? null : model.data.precipitation[index];
+                    return Number.isFinite(value) ? Math.max(0, value) : null;
+                });
+                return { key, model, values };
+            });
+            const hourlyMeans = forecastTimes.map((_, index) => {
+                const values = modelRows.map(row => row.values[index]).filter(Number.isFinite);
+                return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+            });
+            const availableMeans = hourlyMeans.filter(Number.isFinite);
+            if (availableMeans.length === 0) {
+                totalElement.textContent = '-- mm';
+                peakElement.textContent = '-- mm/u';
+                intensityElement.textContent = 'GEEN DATA';
+                statusElement.textContent = 'De geselecteerde modellen hebben geen neerslagdata voor deze periode.';
+                tableBody.replaceChildren();
+                return;
+            }
+
+            const total = availableMeans.reduce((sum, value) => sum + value, 0);
+            const peak = Math.max(...availableMeans);
+            const intensity = peak < 0.1 ? 'DROOG' : peak < 2.5 ? 'LICHT' : peak < 7.5 ? 'MATIG' : 'ZWAAR';
+            totalElement.textContent = `${total.toFixed(2)} mm`;
+            peakElement.textContent = `${peak.toFixed(2)} mm/u`;
+            intensityElement.textContent = intensity;
+            intensityElement.className = `text-[10px] font-semibold border px-2 py-1 rounded shrink-0 ${
+                intensity === 'DROOG'
+                    ? 'bg-slate-700 text-slate-300 border-slate-600'
+                    : intensity === 'LICHT'
+                        ? 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+                        : intensity === 'MATIG'
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                            : 'bg-red-500/10 text-red-300 border-red-500/30'
+            }`;
+
+            tableBody.replaceChildren();
+            modelRows.forEach(({ key, model, values }) => {
+                const row = document.createElement('tr');
+                const name = document.createElement('th');
+                name.className = 'py-1.5 pr-2 font-medium whitespace-nowrap';
+                name.scope = 'row';
+                name.innerHTML = `<span class="inline-block w-2 h-2 rounded-full mr-1.5" style="background:${model.color}"></span>`;
+                name.append(document.createTextNode(key === 'bestMatch' ? 'Open-Meteo' : model.name));
+                row.appendChild(name);
+
+                const finiteValues = values.filter(Number.isFinite);
+                values.forEach(value => {
+                    const cell = document.createElement('td');
+                    cell.className = 'py-1.5 px-1 text-right tabular-nums';
+                    cell.textContent = Number.isFinite(value) ? `${value.toFixed(2)}` : '--';
+                    row.appendChild(cell);
+                });
+                const totalCell = document.createElement('td');
+                totalCell.className = 'py-1.5 pl-1 text-right font-semibold tabular-nums';
+                totalCell.textContent = finiteValues.length > 0
+                    ? finiteValues.reduce((sum, value) => sum + value, 0).toFixed(2)
+                    : '--';
+                row.appendChild(totalCell);
+                tableBody.appendChild(row);
+            });
+
+            const datasets = [{
+                label: 'Modelgemiddelde',
+                data: hourlyMeans,
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.16)',
+                borderWidth: 2.5,
+                pointRadius: 3,
+                pointBackgroundColor: '#38bdf8',
+                fill: true,
+                stepped: 'before',
+                spanGaps: false
+            }, ...modelRows.map(({ model, values }) => ({
+                label: model.name,
+                data: values,
+                borderColor: model.color,
+                borderWidth: 1.25,
+                pointRadius: 1.5,
+                pointBackgroundColor: model.color,
+                fill: false,
+                stepped: 'before',
+                spanGaps: false
+            }))];
+
+            rainNowcastChartInstance = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: forecastTimes.map(time => time.slice(11, 16)), datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: context => ` ${context.dataset.label}: ${Number.isFinite(context.raw) ? context.raw.toFixed(2) : '--'} mm/u`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', maxRotation: 0 }, grid: { color: 'rgba(71, 85, 105, 0.35)' } },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8', maxTicksLimit: 4, callback: value => `${value} mm` },
+                            grid: { color: 'rgba(71, 85, 105, 0.35)' }
+                        }
+                    }
+                }
+            });
+            statusElement.textContent = 'Open-Meteo • uurlijkse waarden in mm/u; totaal is de som van de volgende 3 modeluren. Geen radar-nowcast.';
         }
 
         function processConsensus() {
