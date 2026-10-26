@@ -206,7 +206,7 @@
                 <div class="flex items-start justify-between gap-3 pb-3 border-b border-slate-700/60">
                     <div>
                         <h3 class="text-sm font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-cloud-rain text-sky-400"></i> Neerslag komende 3 uur
+                            <i class="fa-solid fa-cloud-rain text-sky-400"></i> Neerslag komende 5 uur
                         </h3>
                         <p class="text-[10px] text-slate-400 mt-1">Neerslagverwachting per kwartier</p>
                     </div>
@@ -214,7 +214,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2 mt-3">
                     <div class="bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
-                        <div class="text-[10px] text-slate-400">Verwacht in 3 uur</div>
+                        <div class="text-[10px] text-slate-400">Verwacht in 5 uur</div>
                         <div id="rainNowcastTotal" class="text-lg font-bold text-white">-- mm</div>
                     </div>
                     <div class="bg-slate-900/50 p-2.5 rounded-lg border border-slate-700/40">
@@ -223,7 +223,7 @@
                     </div>
                 </div>
                 <div class="relative h-36 mt-3">
-                    <canvas id="rainNowcastChart" role="img" aria-label="Kwartierneerslagverwachting voor de komende drie uur"></canvas>
+                    <canvas id="rainNowcastChart" role="img" aria-label="Kwartierneerslagverwachting voor de komende vijf uur"></canvas>
                 </div>
                 <p id="rainNowcastStatus" class="text-[10px] text-slate-500 mt-2">Open-Meteo • kwartierdata, hoge-resolutiemodellen waar beschikbaar.</p>
             </section>
@@ -782,7 +782,7 @@
                     longitude: location.longitude,
                     current: 'temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m,weather_code,is_day',
                     minutely_15: 'precipitation',
-                    forecast_minutely_15: '12',
+                    forecast_minutely_15: '20',
                     timezone: 'auto'
                 });
                 const currentResponse = await fetch(`https://api.open-meteo.com/v1/forecast?${currentParams}`);
@@ -887,15 +887,15 @@
             const firstFutureIndex = rainNowcastData.time.findIndex(time => time >= locationCurrentData.current.time);
             const forecastTimes = firstFutureIndex === -1
                 ? []
-                : rainNowcastData.time.slice(firstFutureIndex, firstFutureIndex + 12);
+                : rainNowcastData.time.slice(firstFutureIndex, firstFutureIndex + 20);
             const precipitationValues = firstFutureIndex === -1
                 ? []
-                : rainNowcastData.precipitation.slice(firstFutureIndex, firstFutureIndex + 12);
+                : rainNowcastData.precipitation.slice(firstFutureIndex, firstFutureIndex + 20);
             if (forecastTimes.length === 0 || !precipitationValues.some(Number.isFinite)) {
                 totalElement.textContent = '-- mm';
                 peakElement.textContent = '-- mm/u';
                 intensityElement.textContent = 'GEEN DATA';
-                statusElement.textContent = 'Geen kwartierneerslag beschikbaar voor de komende drie uur.';
+                statusElement.textContent = 'Geen kwartierneerslag beschikbaar voor de komende vijf uur.';
                 return;
             }
             const intensityValues = precipitationValues.map(value => Number.isFinite(value) ? value * 4 : null);
