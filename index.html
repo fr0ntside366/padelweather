@@ -898,9 +898,10 @@
                 statusElement.textContent = 'Geen kwartierneerslag beschikbaar voor de komende vijf uur.';
                 return;
             }
-            const intensityValues = precipitationValues.map(value => Number.isFinite(value) ? value * 4 : null);
+            const rawIntensityValues = precipitationValues.map(value => Number.isFinite(value) ? Math.max(0, value) * 4 : null);
+            const intensityValues = rawIntensityValues.map(value => Number.isFinite(value) && value >= 0.005 ? value : null);
             const validAmounts = precipitationValues.filter(Number.isFinite);
-            const peak = Math.max(...intensityValues.filter(Number.isFinite));
+            const peak = Math.max(...rawIntensityValues.filter(Number.isFinite));
             const total = validAmounts.reduce((sum, value) => sum + Math.max(0, value), 0);
             const intensity = peak < 0.1 ? 'DROOG' : peak < 2.5 ? 'LICHT' : peak < 7.5 ? 'MATIG' : 'ZWAAR';
             totalElement.textContent = `${total.toFixed(2)} mm`;
@@ -916,7 +917,7 @@
                             : 'bg-red-500/10 text-red-300 border-red-500/30'
             }`;
 
-            const datasets = total > 0 ? [{
+            const datasets = intensityValues.some(Number.isFinite) ? [{
                 label: 'Neerslagintensiteit',
                 data: intensityValues,
                 borderColor: '#38bdf8',
